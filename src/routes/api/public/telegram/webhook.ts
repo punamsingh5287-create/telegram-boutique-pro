@@ -11,6 +11,8 @@ import {
   type InlineButton,
   deleteMessage,
   sendRawMessage,
+  setMyCommands,
+  setChatMenuButton,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -131,9 +133,9 @@ async function sendHome(chat_id: number, firstName?: string) {
 
 const START_SPLASH_EMOJI_ID = '6089195304152731129';
 
-// Fire-and-forget splash: sends the premium emoji, schedules its deletion
-// after a short delay in the background, and returns immediately so the
-// welcome message can be sent right after with no perceptible lag.
+// Splash: send the premium emoji BELOW the welcome menu, wait 3s, delete.
+// Awaited inline because Cloudflare Workers kill background promises after
+// the response returns — fire-and-forget would never actually run.
 async function flashStartSplash(chat_id: number): Promise<void> {
   try {
     const stateKey = `start_splash:${chat_id}`;
@@ -143,9 +145,12 @@ async function flashStartSplash(chat_id: number): Promise<void> {
       .eq('key', stateKey)
       .maybeSingle();
     const previousId = Number((previous?.value as any)?.message_id ?? 0);
-    if (previousId) deleteMessage(chat_id, previousId).catch(() => {});
+    if (previousId) await deleteMessage(chat_id, previousId).catch(() => {});
 
-    const sent: any = await sendRawMessage(chat_id, `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`);
+    const sent: any = await sendRawMessage(
+      chat_id,
+      `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`,
+    );
     if (!sent?.message_id) return;
     await admin().from('app_settings').upsert(
       { key: stateKey, value: { message_id: sent.message_id } as any, updated_at: new Date().toISOString() },
@@ -156,6 +161,28 @@ async function flashStartSplash(chat_id: number): Promise<void> {
     await admin().from('app_settings').delete().eq('key', stateKey);
   } catch {
     // Decorative only — never block /start.
+  }
+}
+
+const BOT_COMMANDS = [
+  { command: 'start',    description: 'Start and open the menu' },
+  { command: 'shop',     description: 'Open the main store' },
+  { command: 'profile',  description: 'View your profile & balance' },
+  { command: 'deposit',  description: 'Add funds to your wallet' },
+  { command: 'orders',   description: 'Your recent orders' },
+  { command: 'products', description: 'Your delivered licenses' },
+  { command: 'help',     description: 'Get support & help' },
+];
+
+let _menuInstalled = false;
+async function ensureMenuInstalled(): Promise<void> {
+  if (_menuInstalled) return;
+  _menuInstalled = true;
+  try {
+    await setMyCommands(BOT_COMMANDS);
+    await setChatMenuButton({ menu_button: { type: 'commands' } });
+  } catch {
+    _menuInstalled = false;
   }
 }
 
@@ -702,9 +729,11 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      // Ensure the persistent Menu (hamburger) button + commands are registered.
+      await ensureMenuInstalled();
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
-      flashStartSplash(chat_id).catch(() => {});
+      await flashStartSplash(chat_id);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
     } else if (text.startsWith('/orders')) {
