@@ -177,7 +177,7 @@ async function sendAdminButtonEdit(chat_id: number, k: ButtonKey) {
       `Emoji preview: ${renderEmoji(b)}`,
       `Premium emoji ID: ${premium}`,
       ``,
-      `<i>Telegram does not support animated custom emoji inside keyboard button labels, so the premium version is shown in message text/menu previews while the button keeps the plain fallback emoji.</i>`,
+      `<i>Premium emoji IDs are sent as Telegram's button icon field on supported clients. The plain emoji stays as a fallback.</i>`,
     ].join('\n'),
     { reply_markup: { inline_keyboard: adminButtonEditKeyboard(k) } },
   );
