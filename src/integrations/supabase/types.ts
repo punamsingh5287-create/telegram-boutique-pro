@@ -397,6 +397,78 @@ export type Database = {
           },
         ]
       }
+      payment_claims: {
+        Row: {
+          amount_cents: number
+          chat_id: number | null
+          created_at: string
+          currency: string
+          id: string
+          method: string
+          normalized_reference: string
+          order_id: string
+          provider: string | null
+          provider_payload: Json
+          reference: string
+          rejected_reason: string | null
+          status: string
+          telegram_id: number | null
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          amount_cents: number
+          chat_id?: number | null
+          created_at?: string
+          currency?: string
+          id?: string
+          method: string
+          normalized_reference: string
+          order_id: string
+          provider?: string | null
+          provider_payload?: Json
+          reference: string
+          rejected_reason?: string | null
+          status?: string
+          telegram_id?: number | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          chat_id?: number | null
+          created_at?: string
+          currency?: string
+          id?: string
+          method?: string
+          normalized_reference?: string
+          order_id?: string
+          provider?: string | null
+          provider_payload?: Json
+          reference?: string
+          rejected_reason?: string | null
+          status?: string
+          telegram_id?: number | null
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_claims_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_claims_telegram_id_fkey"
+            columns: ["telegram_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_users"
+            referencedColumns: ["telegram_id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
