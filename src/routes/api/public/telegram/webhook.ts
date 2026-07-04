@@ -678,44 +678,36 @@ async function clearPendingQty(tg: number) {
   await admin().from('app_settings').delete().eq('key', qtyKey(tg));
 }
 
-async function promptCustomQty(chat_id: number, tg: number, productId: string) {
+async function promptCustomQty(chat_id: number, tg: number, productId: string, lang: Lang = 'en') {
   await setPendingQty(tg, productId);
-  await sendMessage(chat_id, [
-    '🔢 <b>Custom Quantity</b>',
-    '',
-    'Send the number of items you want to buy as your next message.',
-    '',
-    '<i>Example: 47</i>',
-    '',
-    'Send /cancel to abort.',
-  ].join('\n'));
+  await sendMessage(chat_id, `${t(lang, 'qty.title')}\n\n${t(lang, 'qty.body')}`);
 }
 
 /** Returns true if the message was consumed as a pending-qty entry. */
-async function handlePendingQty(chat_id: number, tg: number, text: string): Promise<boolean> {
+async function handlePendingQty(chat_id: number, tg: number, text: string, lang: Lang = 'en'): Promise<boolean> {
   const pending = await getPendingQty(tg);
   if (!pending) return false;
   const trimmed = (text ?? '').trim();
   if (trimmed === '/cancel') {
     await clearPendingQty(tg);
-    await sendMessage(chat_id, '❌ Cancelled.');
+    await sendMessage(chat_id, t(lang, 'qty.cancelled'));
     return true;
   }
   const qty = parseInt(trimmed, 10);
   if (!Number.isFinite(qty) || qty < 1) {
-    await sendMessage(chat_id, '❌ Please send a positive whole number (or /cancel).');
+    await sendMessage(chat_id, t(lang, 'qty.invalid'));
     return true;
   }
   await clearPendingQty(tg);
-  const card = await renderProductCard(pending.productId, Math.min(qty, 9999));
-  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return true; }
+  const card = await renderProductCard(pending.productId, Math.min(qty, 9999), lang);
+  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'product.not_available')}`); return true; }
   await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
   return true;
 }
 
 
-async function updateProductQty(chat_id: number, message_id: number, productId: string, qty: number) {
-  const card = await renderProductCard(productId, qty);
+async function updateProductQty(chat_id: number, message_id: number, productId: string, qty: number, lang: Lang = 'en') {
+  const card = await renderProductCard(productId, qty, lang);
   if (!card) return;
   try {
     await editMessageText(chat_id, message_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
