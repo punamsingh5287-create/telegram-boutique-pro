@@ -449,7 +449,7 @@ async function sendShop(chat_id: number) {
 
 const SHOP_POPUP_EMOJI_ID = '5384508509385669657';
 const SHOP_POPUP_FALLBACK = '✨';
-const SHOP_POPUP_VISIBLE_MS = 3800;
+const SHOP_POPUP_VISIBLE_MS = 2500;
 
 async function flashShopPopup(chat_id: number) {
   try {
@@ -459,7 +459,7 @@ async function flashShopPopup(chat_id: number) {
     );
     const message_id = (sent as any)?.message_id;
     // Telegram stops the native premium effect when the source message is deleted,
-    // so keep it visible long enough for the original animation to finish first.
+    // so keep it visible just long enough for the original animation to feel complete.
     await new Promise((r) => setTimeout(r, SHOP_POPUP_VISIBLE_MS));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
