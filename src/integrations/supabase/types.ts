@@ -14,16 +14,378 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cart_items: {
+        Row: {
+          added_at: string
+          product_id: string
+          quantity: number
+          telegram_id: number
+        }
+        Insert: {
+          added_at?: string
+          product_id: string
+          quantity?: number
+          telegram_id: number
+        }
+        Update: {
+          added_at?: string
+          product_id?: string
+          quantity?: number
+          telegram_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cart_items_telegram_id_fkey"
+            columns: ["telegram_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_users"
+            referencedColumns: ["telegram_id"]
+          },
+        ]
+      }
+      deliveries: {
+        Row: {
+          delivered_at: string
+          digital_asset_id: string | null
+          id: string
+          order_id: string
+          order_item_id: string
+          payload_snapshot: string
+          product_id: string
+        }
+        Insert: {
+          delivered_at?: string
+          digital_asset_id?: string | null
+          id?: string
+          order_id: string
+          order_item_id: string
+          payload_snapshot: string
+          product_id: string
+        }
+        Update: {
+          delivered_at?: string
+          digital_asset_id?: string | null
+          id?: string
+          order_id?: string
+          order_item_id?: string
+          payload_snapshot?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_digital_asset_id_fkey"
+            columns: ["digital_asset_id"]
+            isOneToOne: false
+            referencedRelation: "digital_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      digital_assets: {
+        Row: {
+          claimed: boolean
+          claimed_at: string | null
+          created_at: string
+          id: string
+          order_item_id: string | null
+          payload: string
+          product_id: string
+        }
+        Insert: {
+          claimed?: boolean
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          order_item_id?: string | null
+          payload: string
+          product_id: string
+        }
+        Update: {
+          claimed?: boolean
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          order_item_id?: string | null
+          payload?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "digital_assets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          id: string
+          order_id: string
+          product_id: string
+          product_name_snapshot: string
+          quantity: number
+          unit_price_cents: number
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          product_id: string
+          product_name_snapshot: string
+          quantity?: number
+          unit_price_cents: number
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          product_id?: string
+          product_name_snapshot?: string
+          quantity?: number
+          unit_price_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          chat_id: number | null
+          created_at: string
+          currency: string
+          delivered_at: string | null
+          environment: string
+          id: string
+          paid_at: string | null
+          status: string
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          telegram_id: number | null
+          total_cents: number
+        }
+        Insert: {
+          chat_id?: number | null
+          created_at?: string
+          currency?: string
+          delivered_at?: string | null
+          environment?: string
+          id?: string
+          paid_at?: string | null
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          telegram_id?: number | null
+          total_cents: number
+        }
+        Update: {
+          chat_id?: number | null
+          created_at?: string
+          currency?: string
+          delivered_at?: string | null
+          environment?: string
+          id?: string
+          paid_at?: string | null
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          telegram_id?: number | null
+          total_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_telegram_id_fkey"
+            columns: ["telegram_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_users"
+            referencedColumns: ["telegram_id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          active: boolean
+          created_at: string
+          currency: string
+          delivery_type: string
+          description: string | null
+          featured: boolean
+          id: string
+          image_url: string | null
+          name: string
+          price_cents: number
+          short_description: string | null
+          slug: string
+          stripe_price_lookup_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          delivery_type?: string
+          description?: string | null
+          featured?: boolean
+          id?: string
+          image_url?: string | null
+          name: string
+          price_cents: number
+          short_description?: string | null
+          slug: string
+          stripe_price_lookup_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          delivery_type?: string
+          description?: string | null
+          featured?: boolean
+          id?: string
+          image_url?: string | null
+          name?: string
+          price_cents?: number
+          short_description?: string | null
+          slug?: string
+          stripe_price_lookup_key?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      telegram_users: {
+        Row: {
+          chat_id: number
+          created_at: string
+          first_name: string | null
+          language_code: string | null
+          last_name: string | null
+          linked_user_id: string | null
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          created_at?: string
+          first_name?: string | null
+          language_code?: string | null
+          last_name?: string | null
+          linked_user_id?: string | null
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          created_at?: string
+          first_name?: string | null
+          language_code?: string | null
+          last_name?: string | null
+          linked_user_id?: string | null
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "customer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +512,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "customer"],
+    },
   },
 } as const
