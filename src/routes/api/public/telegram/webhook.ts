@@ -174,15 +174,28 @@ const BOT_COMMANDS = [
   { command: 'help',     description: 'Get support & help' },
 ];
 
-let _menuInstalled = false;
-async function ensureMenuInstalled(): Promise<void> {
-  if (_menuInstalled) return;
-  _menuInstalled = true;
+let _defaultMenuInstalled = false;
+const _chatMenusInstalled = new Set<number>();
+
+async function ensureMenuInstalled(chat_id?: number): Promise<void> {
+  if (!_defaultMenuInstalled) {
+    try {
+      await setMyCommands(BOT_COMMANDS);
+      await setMyCommands(BOT_COMMANDS, { scope: { type: 'all_private_chats' } });
+      await setChatMenuButton({ menu_button: { type: 'commands' } });
+      _defaultMenuInstalled = true;
+    } catch (err) {
+      console.error('telegram default menu install failed', err);
+    }
+  }
+
+  if (!chat_id || _chatMenusInstalled.has(chat_id)) return;
   try {
-    await setMyCommands(BOT_COMMANDS);
-    await setChatMenuButton({ menu_button: { type: 'commands' } });
-  } catch {
-    _menuInstalled = false;
+    await setMyCommands(BOT_COMMANDS, { scope: { type: 'chat', chat_id } });
+    await setChatMenuButton({ chat_id, menu_button: { type: 'commands' } });
+    _chatMenusInstalled.add(chat_id);
+  } catch (err) {
+    console.error('telegram chat menu install failed', err);
   }
 }
 
@@ -713,6 +726,7 @@ async function handleUpdate(update: any) {
     const chat_id = msg.chat.id;
     const from = msg.from;
     if (from) await upsertTelegramUser({ id: from.id, chat_id, ...from });
+    await ensureMenuInstalled(chat_id);
 
     const text: string = msg.text ?? '';
 
@@ -730,7 +744,7 @@ async function handleUpdate(update: any) {
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
       // Ensure the persistent Menu (hamburger) button + commands are registered.
-      await ensureMenuInstalled();
+      await ensureMenuInstalled(chat_id);
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
       await flashStartSplash(chat_id);
@@ -761,6 +775,7 @@ async function handleUpdate(update: any) {
     const from = cq.from;
     const data: string = cq.data ?? '';
     if (from && chat_id) await upsertTelegramUser({ id: from.id, chat_id, ...from });
+    if (chat_id) await ensureMenuInstalled(chat_id);
 
     try {
       if (data.startsWith('adm:')) {
