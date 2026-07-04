@@ -89,6 +89,10 @@ function ProductsPage() {
         </button>
       </header>
 
+      <div className="rounded-lg border border-gold/20 bg-gold/10 p-3 text-sm text-gold">
+        <TgEmoji variant="gold">🔑</TgEmoji> Add product here first, save it, then open <b>Edit</b> and paste one key/link per line in <b>Auto-delivery inventory</b>. After verified payment, one unused item is delivered automatically.
+      </div>
+
       {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{(error as Error).message}</div>}
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
