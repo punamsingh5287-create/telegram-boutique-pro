@@ -90,7 +90,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       priceCents: Math.floor(data.priceCents),
       currency: (data.currency || "USD").toUpperCase().slice(0, 3),
       imageUrl: (data.imageUrl ?? "").slice(0, 1000),
-      deliveryType: (data.deliveryType || "digital").slice(0, 50),
+      deliveryType: (data.deliveryType || "license_key").slice(0, 50),
       active: !!data.active,
       featured: !!data.featured,
     };

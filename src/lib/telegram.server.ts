@@ -28,6 +28,14 @@ export type InlineButton = {
 
 type InlineReplyMarkup = { inline_keyboard: InlineButton[][] };
 
+function inferButtonStyle(button: InlineButton): InlineButton['style'] {
+  if (button.style) return button.style;
+  const source = `${button.text} ${button.callback_data ?? ''}`.toLowerCase();
+  if (/delete|remove|cancel|close|clear|danger|❌|✖|🗑/.test(source)) return 'danger';
+  if (/pay|buy|save|add|confirm|send|resend|success|checkout|✅|💳|🛒|➕|💾|🔑/.test(source)) return 'success';
+  return 'primary';
+}
+
 /** Lazily apply the admin-configured emoji → custom_emoji_id map so any emoji
  *  that has a Premium ID is auto-wrapped in <tg-emoji> before we call Telegram.
  *  Only runs for HTML parse mode. Never throws — falls back to the raw text. */
@@ -63,6 +71,7 @@ async function withPremiumReplyMarkup(reply_markup?: InlineReplyMarkup): Promise
     return {
       inline_keyboard: reply_markup.inline_keyboard.map((row) => row.map((button) => ({
         ...button,
+        style: inferButtonStyle(button),
         ...(() => {
           if (button.icon_custom_emoji_id) return {};
           const match = map.find(([emoji]) => button.text.startsWith(emoji));
@@ -89,6 +98,14 @@ export async function sendMessage(chat_id: number | string, text: string, opts: 
   const rendered = await withPremiumEmojis(text, parse_mode);
   const reply_markup = await withPremiumReplyMarkup(opts.reply_markup);
   return call('sendMessage', { chat_id, text: rendered, parse_mode, ...opts, reply_markup });
+}
+
+export function sendRawMessage(chat_id: number | string, text: string, opts: {
+  parse_mode?: 'HTML' | 'MarkdownV2';
+  reply_markup?: InlineReplyMarkup;
+  disable_web_page_preview?: boolean;
+} = {}) {
+  return call('sendMessage', { chat_id, text, parse_mode: opts.parse_mode ?? 'HTML', ...opts });
 }
 
 export async function editMessageText(chat_id: number | string, message_id: number, text: string, opts: {
