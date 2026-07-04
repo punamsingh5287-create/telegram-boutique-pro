@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -109,12 +109,20 @@ function AdminDeliveriesPage() {
               Paid orders where the Telegram DM did not go through. License keys are already claimed and stored — resend to redeliver.
             </p>
           </div>
-          <button
-            onClick={() => refetch()}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-foreground hover:bg-white/5"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/admin/audit-log"
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-foreground hover:bg-white/5"
+            >
+              Audit log
+            </Link>
+            <button
+              onClick={() => refetch()}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-foreground hover:bg-white/5"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {data && data.length > 0 && (
