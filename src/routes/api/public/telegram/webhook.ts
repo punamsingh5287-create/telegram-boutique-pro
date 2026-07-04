@@ -101,6 +101,7 @@ function adminMenuKeyboard(): InlineButton[][] {
     [{ text: '✏️ Welcome text',   callback_data: 'adm:edit:welcome' }],
     [{ text: '📝 Welcome footer', callback_data: 'adm:edit:footer' }],
     [{ text: '🔘 Buttons & emojis', callback_data: 'adm:btns' }],
+    [{ text: '💎 Premium emoji map', callback_data: 'adm:emap' }],
     [{ text: '💬 Support handle', callback_data: 'adm:edit:support' }],
     [{ text: '👥 Admins',         callback_data: 'adm:edit:admins' }],
     [{ text: '👁 Preview /start', callback_data: 'adm:preview' }],
@@ -159,6 +160,32 @@ async function sendAdminButtonEdit(chat_id: number, k: ButtonKey) {
   );
 }
 
+async function sendAdminEmojiMap(chat_id: number) {
+  const cfg = await getBotConfig();
+  const entries = Object.entries(cfg.emoji_map);
+  const rows: InlineButton[][] = entries.map(([emoji, id]) => ([
+    { text: `${emoji} → …${id.slice(-6)}`, callback_data: `adm:emap:rm:${encodeURIComponent(emoji)}` },
+  ]));
+  rows.push([{ text: '➕ Add mapping', callback_data: 'adm:emap:add' }]);
+  rows.push([{ text: '↩️ Back', callback_data: 'adm:menu' }]);
+  const list = entries.length
+    ? entries.map(([e, id]) => `• ${e} → <code>${id}</code>`).join('\n')
+    : '<i>No mappings yet.</i>';
+  await sendMessage(chat_id,
+    [
+      '💎 <b>Premium emoji map</b>',
+      '',
+      'Every mapped emoji is auto-replaced with its Telegram Premium animated version in <b>all bot messages</b> (welcome text, orders, catalog, everything).',
+      '',
+      '<b>Current mappings:</b>',
+      list,
+      '',
+      '<i>Requires the bot owner account to have Telegram Premium. Get a custom_emoji_id by forwarding a premium emoji to @idstickerbot. Tap a row to remove it.</i>',
+    ].join('\n'),
+    { reply_markup: { inline_keyboard: rows } },
+  );
+}
+
 async function promptFor(chat_id: number, tg: number, action: any, prompt: string) {
   await setAdminState(tg, action);
   await sendMessage(chat_id, prompt + '\n\nSend the new value as your next message, or /cancel to abort.');
@@ -175,6 +202,27 @@ async function handleAdminCallback(chat_id: number, tg: number, data: string): P
   if (op === 'btns') { await sendAdminButtons(chat_id); return true; }
   if (op === 'close') { await sendMessage(chat_id, '✅ Admin panel closed.'); return true; }
   if (op === 'preview') { await sendHome(chat_id, 'Preview'); return true; }
+
+  if (op === 'emap') {
+    const sub = parts[2];
+    if (!sub) { await sendAdminEmojiMap(chat_id); return true; }
+    if (sub === 'add') {
+      await promptFor(chat_id, tg, { action: 'add_emoji_map' },
+        '➕ <b>Add premium emoji mapping</b>\n\nSend one message in the format:\n<code>😀 5368324170671202286</code>\n\nThat is: the emoji character, a space, then the numeric <code>custom_emoji_id</code>.');
+      return true;
+    }
+    if (sub === 'rm') {
+      const emoji = decodeURIComponent(parts.slice(3).join(':'));
+      const cfg = await getBotConfig();
+      if (cfg.emoji_map[emoji]) {
+        delete cfg.emoji_map[emoji];
+        await saveBotConfig(cfg);
+      }
+      await sendMessage(chat_id, `🗑 Removed mapping for ${emoji}.`);
+      await sendAdminEmojiMap(chat_id);
+      return true;
+    }
+  }
 
   if (op === 'edit') {
     const target = parts[2];
@@ -259,12 +307,23 @@ async function handleAdminInputText(chat_id: number, tg: number, text: string): 
         cfg.buttons[state.key].premium_id = id;
         break;
       }
+      case 'add_emoji_map': {
+        const trimmed = text.trim();
+        const m = trimmed.match(/^(\S+)\s+(\d{5,})$/);
+        if (!m) throw new Error('Format: <emoji> <numeric_id>. Example: 💎 5368324170671202286');
+        const emoji = m[1];
+        const id = m[2];
+        cfg.emoji_map = { ...(cfg.emoji_map ?? {}), [emoji]: id };
+        break;
+      }
     }
     await saveBotConfig(cfg);
     await clearAdminState(tg);
     await sendMessage(chat_id, '✅ Saved. Here is a live preview:');
     if (state.action.startsWith('edit_btn')) {
       await sendAdminButtonEdit(chat_id, (state as any).key);
+    } else if (state.action === 'add_emoji_map') {
+      await sendAdminEmojiMap(chat_id);
     } else {
       await sendHome(chat_id, 'Preview');
       await sendAdminMenu(chat_id);

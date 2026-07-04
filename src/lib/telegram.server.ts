@@ -19,20 +19,38 @@ async function call<T = any>(method: string, payload?: Record<string, unknown>):
 
 export type InlineButton = { text: string; callback_data?: string; url?: string };
 
-export function sendMessage(chat_id: number | string, text: string, opts: {
-  parse_mode?: 'HTML' | 'MarkdownV2';
-  reply_markup?: { inline_keyboard: InlineButton[][] };
-  disable_web_page_preview?: boolean;
-} = {}) {
-  return call('sendMessage', { chat_id, text, parse_mode: opts.parse_mode ?? 'HTML', ...opts });
+/** Lazily apply the admin-configured emoji → custom_emoji_id map so any emoji
+ *  that has a Premium ID is auto-wrapped in <tg-emoji> before we call Telegram.
+ *  Only runs for HTML parse mode. Never throws — falls back to the raw text. */
+async function withPremiumEmojis(text: string, parse_mode?: string): Promise<string> {
+  if (parse_mode && parse_mode !== 'HTML') return text;
+  try {
+    const { getBotConfig, applyPremiumEmojis } = await import('./telegram-bot-config.server');
+    const cfg = await getBotConfig();
+    return applyPremiumEmojis(text, cfg.emoji_map ?? {});
+  } catch {
+    return text;
+  }
 }
 
-export function editMessageText(chat_id: number | string, message_id: number, text: string, opts: {
+export async function sendMessage(chat_id: number | string, text: string, opts: {
   parse_mode?: 'HTML' | 'MarkdownV2';
   reply_markup?: { inline_keyboard: InlineButton[][] };
   disable_web_page_preview?: boolean;
 } = {}) {
-  return call('editMessageText', { chat_id, message_id, text, parse_mode: opts.parse_mode ?? 'HTML', ...opts });
+  const parse_mode = opts.parse_mode ?? 'HTML';
+  const rendered = await withPremiumEmojis(text, parse_mode);
+  return call('sendMessage', { chat_id, text: rendered, parse_mode, ...opts });
+}
+
+export async function editMessageText(chat_id: number | string, message_id: number, text: string, opts: {
+  parse_mode?: 'HTML' | 'MarkdownV2';
+  reply_markup?: { inline_keyboard: InlineButton[][] };
+  disable_web_page_preview?: boolean;
+} = {}) {
+  const parse_mode = opts.parse_mode ?? 'HTML';
+  const rendered = await withPremiumEmojis(text, parse_mode);
+  return call('editMessageText', { chat_id, message_id, text: rendered, parse_mode, ...opts });
 }
 
 export function answerCallbackQuery(callback_query_id: string, text?: string, show_alert = false) {

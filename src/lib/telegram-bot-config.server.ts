@@ -28,6 +28,11 @@ export type BotConfig = {
   support_handle: string;
   admin_ids: number[];
   buttons: Record<string, BotButton>;
+  /** Emoji → Telegram Premium custom_emoji_id. Applied automatically to every
+   *  HTML message the bot sends: each occurrence of the emoji is wrapped with
+   *  <tg-emoji emoji-id="..."> so all users see the premium/animated variant
+   *  (requires the bot owner account to have Telegram Premium — Bot API 9.4). */
+  emoji_map: Record<string, string>;
 };
 
 export const BUTTON_KEYS = [
@@ -55,6 +60,7 @@ const DEFAULTS: BotConfig = {
     support:  { label: 'Support',       emoji: '💬' },
     news:     { label: 'Announcements', emoji: '📢' },
   },
+  emoji_map: {},
 };
 
 export async function getBotConfig(): Promise<BotConfig> {
@@ -65,6 +71,7 @@ export async function getBotConfig(): Promise<BotConfig> {
     ...DEFAULTS,
     ...stored,
     buttons: { ...DEFAULTS.buttons, ...(stored.buttons ?? {}) },
+    emoji_map: { ...DEFAULTS.emoji_map, ...(stored.emoji_map ?? {}) },
   };
 }
 
@@ -102,7 +109,33 @@ export type AdminState =
   | { action: 'edit_admins' }
   | { action: 'edit_btn_label'; key: ButtonKey }
   | { action: 'edit_btn_emoji'; key: ButtonKey }
-  | { action: 'edit_btn_premium'; key: ButtonKey };
+  | { action: 'edit_btn_premium'; key: ButtonKey }
+  | { action: 'add_emoji_map' };
+
+/**
+ * Rewrites `text` so every emoji that has a mapped custom_emoji_id gets
+ * wrapped in a <tg-emoji> tag. Existing <tg-emoji> spans are preserved as-is
+ * to avoid double-wrapping. Intended for HTML-parse-mode messages only.
+ */
+export function applyPremiumEmojis(text: string, map: Record<string, string>): string {
+  const entries = Object.entries(map ?? {}).filter(([e, id]) => e && id && id.trim());
+  if (entries.length === 0) return text;
+  // Longest emoji first so multi-codepoint emojis (👨‍👩‍👧) win over their parts.
+  entries.sort((a, b) => b[0].length - a[0].length);
+  // Split on existing <tg-emoji> tags so we don't wrap them twice.
+  const parts = text.split(/(<tg-emoji\b[^>]*>[\s\S]*?<\/tg-emoji>)/g);
+  return parts
+    .map((part, i) => {
+      if (i % 2 === 1) return part; // preserve existing tag
+      let out = part;
+      for (const [emoji, id] of entries) {
+        if (!out.includes(emoji)) continue;
+        out = out.split(emoji).join(`<tg-emoji emoji-id="${id}">${emoji}</tg-emoji>`);
+      }
+      return out;
+    })
+    .join('');
+}
 
 function stateKey(tg: number) { return `bot_state:${tg}`; }
 
