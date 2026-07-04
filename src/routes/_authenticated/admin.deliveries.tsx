@@ -8,6 +8,16 @@ import {
   bulkResendOrderDeliveries,
   type FailedDelivery,
 } from "@/lib/orders.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/deliveries")({
   head: () => ({
@@ -36,6 +46,7 @@ function AdminDeliveriesPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -77,9 +88,13 @@ function AdminDeliveriesPage() {
       else if (ok === 0) toast.error(`All ${failed} resend${failed === 1 ? "" : "s"} failed`);
       else toast.warning(`${ok} sent · ${failed} failed`);
       setSelected(new Set());
+      setConfirmOpen(false);
       qc.invalidateQueries({ queryKey: ["admin", "failed-deliveries"] });
     },
-    onError: (err: Error) => toast.error(err.message || "Bulk resend failed"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Bulk resend failed");
+      setConfirmOpen(false);
+    },
   });
 
   return (
@@ -117,7 +132,7 @@ function AdminDeliveriesPage() {
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground">{selected.size} selected</span>
               <button
-                onClick={() => bulkResend.mutate(Array.from(selected))}
+                onClick={() => setConfirmOpen(true)}
                 disabled={selected.size === 0 || bulkResend.isPending}
                 className="rounded-lg bg-gradient-royal px-4 py-2 text-sm font-medium text-primary-foreground shadow-royal disabled:opacity-60"
               >
@@ -183,6 +198,30 @@ function AdminDeliveriesPage() {
           </ul>
         )}
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => !bulkResend.isPending && setConfirmOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resend {selected.size} deliver{selected.size === 1 ? "y" : "ies"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Each selected order will receive its Telegram DM again. License keys are not re-claimed,
+              but customers may receive duplicate messages. This action is logged in the admin audit log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkResend.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                bulkResend.mutate(Array.from(selected));
+              }}
+              disabled={bulkResend.isPending || selected.size === 0}
+            >
+              {bulkResend.isPending ? "Resending…" : `Resend ${selected.size}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
