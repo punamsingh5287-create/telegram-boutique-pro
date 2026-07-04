@@ -43,6 +43,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Orders", url: "/admin/orders", icon: ShoppingCart, emoji: "🛒" },
       { title: "Payments", url: "/admin/payments", icon: CreditCard, emoji: "💳" },
+      { title: "Payment config", url: "/admin/payments-config", icon: CreditCard, emoji: "⚙️" },
       { title: "Deliveries", url: "/admin/deliveries", icon: Truck, emoji: "🚚" },
     ],
   },

@@ -19,6 +19,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminProductsRouteImport } from './routes/_authenticated/admin.products'
+import { Route as AuthenticatedAdminPaymentsConfigRouteImport } from './routes/_authenticated/admin.payments-config'
 import { Route as AuthenticatedAdminPaymentsRouteImport } from './routes/_authenticated/admin.payments'
 import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenticated/admin.orders'
 import { Route as AuthenticatedAdminFakeBroadcastRouteImport } from './routes/_authenticated/admin.fake-broadcast'
@@ -81,6 +82,12 @@ const AuthenticatedAdminProductsRoute =
   AuthenticatedAdminProductsRouteImport.update({
     id: '/products',
     path: '/products',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPaymentsConfigRoute =
+  AuthenticatedAdminPaymentsConfigRouteImport.update({
+    id: '/payments-config',
+    path: '/payments-config',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminPaymentsRoute =
@@ -169,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/admin/fake-broadcast': typeof AuthenticatedAdminFakeBroadcastRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
+  '/admin/payments-config': typeof AuthenticatedAdminPaymentsConfigRoute
   '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -191,6 +199,7 @@ export interface FileRoutesByTo {
   '/admin/fake-broadcast': typeof AuthenticatedAdminFakeBroadcastRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
   '/admin/payments': typeof AuthenticatedAdminPaymentsRoute
+  '/admin/payments-config': typeof AuthenticatedAdminPaymentsConfigRoute
   '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -216,6 +225,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/fake-broadcast': typeof AuthenticatedAdminFakeBroadcastRoute
   '/_authenticated/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
   '/_authenticated/admin/payments': typeof AuthenticatedAdminPaymentsRoute
+  '/_authenticated/admin/payments-config': typeof AuthenticatedAdminPaymentsConfigRoute
   '/_authenticated/admin/products': typeof AuthenticatedAdminProductsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/admin/fake-broadcast'
     | '/admin/orders'
     | '/admin/payments'
+    | '/admin/payments-config'
     | '/admin/products'
     | '/admin/settings'
     | '/admin/users'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/admin/fake-broadcast'
     | '/admin/orders'
     | '/admin/payments'
+    | '/admin/payments-config'
     | '/admin/products'
     | '/admin/settings'
     | '/admin/users'
@@ -287,6 +299,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/fake-broadcast'
     | '/_authenticated/admin/orders'
     | '/_authenticated/admin/payments'
+    | '/_authenticated/admin/payments-config'
     | '/_authenticated/admin/products'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/users'
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/admin/products'
       preLoaderRoute: typeof AuthenticatedAdminProductsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/payments-config': {
+      id: '/_authenticated/admin/payments-config'
+      path: '/payments-config'
+      fullPath: '/admin/payments-config'
+      preLoaderRoute: typeof AuthenticatedAdminPaymentsConfigRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/payments': {
@@ -490,6 +510,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminFakeBroadcastRoute: typeof AuthenticatedAdminFakeBroadcastRoute
   AuthenticatedAdminOrdersRoute: typeof AuthenticatedAdminOrdersRouteWithChildren
   AuthenticatedAdminPaymentsRoute: typeof AuthenticatedAdminPaymentsRoute
+  AuthenticatedAdminPaymentsConfigRoute: typeof AuthenticatedAdminPaymentsConfigRoute
   AuthenticatedAdminProductsRoute: typeof AuthenticatedAdminProductsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -505,6 +526,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminFakeBroadcastRoute: AuthenticatedAdminFakeBroadcastRoute,
   AuthenticatedAdminOrdersRoute: AuthenticatedAdminOrdersRouteWithChildren,
   AuthenticatedAdminPaymentsRoute: AuthenticatedAdminPaymentsRoute,
+  AuthenticatedAdminPaymentsConfigRoute: AuthenticatedAdminPaymentsConfigRoute,
   AuthenticatedAdminProductsRoute: AuthenticatedAdminProductsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
