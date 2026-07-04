@@ -1,8 +1,9 @@
 import { loadPaymentConfig, type PaymentConfig } from "@/lib/payment-config.functions";
 import { sendMessage, sendPhoto, formatPrice, EMOJI } from "@/lib/telegram.server";
 import { recordAudit } from "@/lib/audit.server";
+import { createHmac, randomBytes } from "crypto";
 
-export type PayMethod = "upi" | "trc20" | "bep20" | "erc20" | "btc";
+export type PayMethod = "upi" | "trc20" | "bep20" | "erc20" | "btc" | "binancepay";
 
 export function methodLabel(m: PayMethod): string {
   return {
@@ -11,6 +12,7 @@ export function methodLabel(m: PayMethod): string {
     bep20: "USDT · BEP-20 (BSC)",
     erc20: "USDT · ERC-20 (Ethereum)",
     btc: "BTC (Bitcoin)",
+    binancepay: "Binance Pay (USDT)",
   }[m];
 }
 
@@ -21,6 +23,7 @@ export function enabledMethods(cfg: PaymentConfig): PayMethod[] {
   if (cfg.crypto_bep20.enabled && cfg.crypto_bep20.address) out.push("bep20");
   if (cfg.crypto_erc20.enabled && cfg.crypto_erc20.address) out.push("erc20");
   if (cfg.crypto_btc.enabled && cfg.crypto_btc.address) out.push("btc");
+  if (cfg.binance?.enabled && (cfg.binance.pay_id || cfg.binance.api_key)) out.push("binancepay");
   return out;
 }
 
@@ -40,6 +43,10 @@ export function expectedAmount(order: { total_cents: number; currency: string },
   if (method === "btc") {
     const btc = usd / BTC_USD_RATE_DEFAULT;
     return { display: `${btc.toFixed(8)} BTC`, human: `${btc.toFixed(8)} BTC`, num: btc, unit: "BTC" as const };
+  }
+  if (method === "binancepay") {
+    const usdt = usd / (cfg.usdt_to_usd_rate || 1);
+    return { display: `${usdt.toFixed(2)} USDT`, human: `${usdt.toFixed(2)} USDT`, num: usdt, unit: "USDT" as const };
   }
   const usdt = usd / (cfg.usdt_to_usd_rate || 1);
   return { display: `${usdt.toFixed(2)} USDT`, human: `${usdt.toFixed(2)} USDT`, num: usdt, unit: "USDT" as const };
@@ -163,7 +170,107 @@ export async function verifyReference(method: PayMethod, ref: string, order: { t
     case "bep20": return verifyEvm("bep20", ref, exp.num, cfg);
     case "erc20": return verifyEvm("erc20", ref, exp.num, cfg);
     case "btc":  return verifyBtc(ref, exp.num, cfg);
+    case "binancepay": return verifyBinancePayByTradeNo(order as any, cfg);
   }
+}
+
+// ---- Binance Pay ----
+
+const BINANCE_PAY_BASE = "https://bpay.binanceapi.com";
+
+function binanceSign(payload: string, secret: string): { ts: string; nonce: string; sig: string } {
+  const ts = Date.now().toString();
+  const nonce = randomBytes(16).toString("hex").slice(0, 32);
+  const data = `${ts}\n${nonce}\n${payload}\n`;
+  const sig = createHmac("sha512", secret).update(data).digest("hex").toUpperCase();
+  return { ts, nonce, sig };
+}
+
+async function binanceCall(path: string, body: any, cfg: PaymentConfig): Promise<any> {
+  const payload = JSON.stringify(body);
+  const { ts, nonce, sig } = binanceSign(payload, cfg.binance.api_secret);
+  const res = await fetch(`${BINANCE_PAY_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "BinancePay-Timestamp": ts,
+      "BinancePay-Nonce": nonce,
+      "BinancePay-Certificate-SN": cfg.binance.api_key,
+      "BinancePay-Signature": sig,
+    },
+    body: payload,
+  });
+  return res.json().catch(() => ({}));
+}
+
+/** Create a Binance Pay order pinned to our order id so we can later query it. */
+export async function createBinancePayOrder(
+  order: { id: string; total_cents: number; currency: string },
+  cfg: PaymentConfig,
+): Promise<{ ok: true; checkoutUrl: string; qrcodeLink: string; deeplink: string; prepayId: string } | { ok: false; reason: string }> {
+  if (!cfg.binance.api_key || !cfg.binance.api_secret) {
+    return { ok: false, reason: "Binance Pay API keys not configured" };
+  }
+  const exp = expectedAmount(order as any, "binancepay", cfg);
+  const body = {
+    env: { terminalType: "WEB" },
+    merchantTradeNo: order.id.replace(/-/g, "").slice(0, 32),
+    orderAmount: Number(exp.num.toFixed(2)),
+    currency: "USDT",
+    goods: {
+      goodsType: "02",
+      goodsCategory: "Z000",
+      referenceGoodsId: order.id.slice(0, 32),
+      goodsName: `Order ${order.id.slice(0, 8)}`,
+    },
+  };
+  const json = await binanceCall("/binancepay/openapi/v3/order", body, cfg);
+  if (json?.status !== "SUCCESS" || json?.code !== "000000") {
+    return { ok: false, reason: json?.errorMessage || json?.code || "Binance createOrder failed" };
+  }
+  return {
+    ok: true,
+    checkoutUrl: json.data.checkoutUrl,
+    qrcodeLink: json.data.qrcodeLink,
+    deeplink: json.data.deeplink,
+    prepayId: json.data.prepayId,
+  };
+}
+
+async function verifyBinancePayByTradeNo(
+  order: { id: string },
+  cfg: PaymentConfig,
+): Promise<VerifyResult> {
+  if (!cfg.binance?.api_key || !cfg.binance?.api_secret) {
+    return { ok: false, provider: "manual", reason: "Binance Pay API keys not configured — awaiting manual approval." };
+  }
+  const merchantTradeNo = order.id.replace(/-/g, "").slice(0, 32);
+  const json = await binanceCall("/binancepay/openapi/v2/order/query", { merchantTradeNo }, cfg);
+  if (json?.status !== "SUCCESS" || json?.code !== "000000") {
+    return { ok: false, provider: "binancepay", reason: json?.errorMessage || json?.code || "Binance queryOrder failed" };
+  }
+  const status = json.data?.status;
+  if (status === "PAID") {
+    return { ok: true, provider: "binancepay", payload: { prepayId: json.data.prepayId, transactionId: json.data.transactionId } };
+  }
+  return { ok: false, provider: "binancepay", reason: `Binance status: ${status || "unknown"} — pay first, then tap verify.` };
+}
+
+/** Public helper used by the bot when the buyer taps "I've paid — verify". */
+export async function verifyBinanceForOrder(orderId: string): Promise<{ ok: boolean; message: string; provider?: string }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: order } = await supabaseAdmin
+    .from("orders")
+    .select("id,total_cents,currency,status")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { ok: false, message: "Order not found." };
+  if (order.status !== "pending") return { ok: false, message: `Order already ${order.status}.` };
+  const cfg = await loadPaymentConfig();
+  const result = await verifyBinancePayByTradeNo(order as any, cfg);
+  if (!result.ok) return { ok: false, message: result.reason, provider: result.provider };
+  await fulfillOrder(order.id, "binancepay", (result as any).payload?.transactionId ?? (result as any).payload?.prepayId ?? "binancepay");
+  return { ok: true, message: "Payment verified — check your delivery message.", provider: result.provider };
 }
 
 /** Take a bot text message, find user's pending order + method, verify and fulfill. */
@@ -332,6 +439,7 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
   const header = `${EMOJI.pay} <b>${methodLabel(method)}</b>\nOrder <code>${shortId}</code> · ${formatPrice(order.total_cents, order.currency)}`;
   let body = "";
   let photo: string | null = null;
+  let extraButtons: { text: string; url?: string; callback_data?: string }[][] | null = null;
   if (method === "upi") {
     body =
       `\n\n💠 <b>Send exactly ${exp.display}</b>\n` +
@@ -344,6 +452,34 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
       `\n\n💠 <b>Send exactly ${exp.display}</b>\n` +
       `BTC address: <code>${cfg.crypto_btc.address}</code>\n` +
       `\nTx confirm hone ke baad transaction hash (txid) yahi bhej dijiye.`;
+  } else if (method === "binancepay") {
+    const assets = cfg.binance.accepted_assets || "USDT";
+    if (cfg.binance.api_key && cfg.binance.api_secret) {
+      const created = await createBinancePayOrder(order, cfg);
+      if (created.ok) {
+        body =
+          `\n\n💠 <b>Pay ${exp.display}</b> via Binance Pay\n` +
+          `Tap <b>Pay on Binance</b>, complete the payment, then tap <b>I've paid — verify</b>.\n` +
+          `Auto-verify + instant delivery.`;
+        extraButtons = [
+          [{ text: '💳 Pay on Binance', url: created.checkoutUrl }],
+          [{ text: `${EMOJI.check} I've paid — verify`, callback_data: `bnv:${order.id}` }],
+        ];
+      } else {
+        body =
+          `\n\n💠 <b>Send exactly ${exp.display}</b> to Pay ID:\n` +
+          `Binance Pay ID: <code>${cfg.binance.pay_id || '(not set)'}</code>\n` +
+          `Assets: ${assets}\n\n` +
+          `<i>Auto-order could not be created (${created.reason}). Send the Binance Order ID here after paying — admin will verify manually.</i>`;
+      }
+    } else {
+      body =
+        `\n\n💠 <b>Send exactly ${exp.display}</b> to Pay ID:\n` +
+        `Binance Pay ID: <code>${cfg.binance.pay_id || '(not set)'}</code>\n` +
+        (cfg.binance.account_email ? `Account: <code>${cfg.binance.account_email}</code>\n` : '') +
+        `Assets: ${assets}\n\n` +
+        `Payment ke baad Binance <b>Order ID</b> yahi chat me bhej dijiye — admin verify karega.`;
+    }
   } else {
     const c = method === "trc20" ? cfg.crypto_trc20 : method === "bep20" ? cfg.crypto_bep20 : cfg.crypto_erc20;
     body =
@@ -352,7 +488,7 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
       `\nTx confirm ke baad Transaction Hash yahi chat me bhej dijiye — auto-verify + delivery.`;
   }
   const text = header + body + `\n\n<i>${cfg.instructions}</i>`;
-  return { text, photo };
+  return { text, photo, extraButtons };
 }
 
 export async function loadCfg(): Promise<PaymentConfig> {

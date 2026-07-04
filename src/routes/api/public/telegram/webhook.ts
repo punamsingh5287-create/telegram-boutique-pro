@@ -20,6 +20,7 @@ import {
   methodLabel,
   loadCfg,
   expectedAmount,
+  verifyBinanceForOrder,
   type PayMethod,
 } from '@/lib/payment-flow.server';
 import {
@@ -173,7 +174,12 @@ function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset:
 
 async function sendHome(chat_id: number, firstName?: string, lang: Lang = 'en') {
   const cfg = await getBotConfig();
-  const text = lang === 'en' ? welcomeText(cfg, firstName) : welcomeFallback(lang, firstName);
+  // Admin's custom welcome_text is preserved across all languages so the
+  // brand message stays consistent when the buyer switches language. Only
+  // buttons/labels translate. `welcomeFallback` is kept as a safety net if
+  // the admin ever leaves welcome_text blank.
+  const custom = (cfg.welcome_text || '').trim();
+  const text = custom ? welcomeText(cfg, firstName) : welcomeFallback(lang, firstName);
   const reply_markup = { inline_keyboard: homeKeyboard(cfg, lang) };
   if (cfg.welcome_image_url) {
     try {
@@ -825,13 +831,12 @@ async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: s
     await sendMessage(chat_id, `${EMOJI.check} ${t(lang, 'order.already', { status: (order as any).status })}`);
     return;
   }
-  const { text, photo } = await buildPaymentInstruction(order as any, method);
-  const reply_markup = {
-    inline_keyboard: [
-      [{ text: t(lang, 'btn.change_method'), callback_data: `pm_back:${orderId}` }],
-      [{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }],
-    ],
-  };
+  const { text, photo, extraButtons } = await buildPaymentInstruction(order as any, method);
+  const rows: InlineButton[][] = [];
+  if (extraButtons) rows.push(...(extraButtons as InlineButton[][]));
+  rows.push([{ text: t(lang, 'btn.change_method'), callback_data: `pm_back:${orderId}` }]);
+  rows.push([{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }]);
+  const reply_markup = { inline_keyboard: rows };
   if (photo) {
     await sendPhoto(chat_id, photo, text, { reply_markup });
   } else {
@@ -1039,6 +1044,13 @@ async function handleUpdate(update: any) {
       else if (data.startsWith('pm:')) {
         const [, method, orderId] = data.split(':');
         if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId, lang);
+      }
+      else if (data.startsWith('bnv:')) {
+        const orderId = data.slice('bnv:'.length);
+        if (orderId) {
+          const res = await verifyBinanceForOrder(orderId);
+          await sendMessage(chat_id, (res.ok ? `${EMOJI.check} ` : `${EMOJI.clock} `) + res.message);
+        }
       }
       else if (data.startsWith('pm_back:')) {
         const orderId = data.slice('pm_back:'.length);
