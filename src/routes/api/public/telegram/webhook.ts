@@ -13,6 +13,16 @@ import {
   type InlineButton,
 } from '@/lib/telegram.server';
 import {
+  enabledMethods,
+  buildPaymentInstruction,
+  submitReferenceFromChat,
+  detectReference,
+  methodLabel,
+  loadCfg,
+  expectedAmount,
+  type PayMethod,
+} from '@/lib/payment-flow.server';
+import {
   getBotConfig,
   saveBotConfig,
   renderEmoji,
@@ -720,23 +730,85 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     product_name_snapshot: p.name,
   });
 
-  const payUrl = `${siteBase()}/pay/${(order as any).id}`;
-  await sendMessage(chat_id, [
+  await sendPaymentChooser(chat_id, (order as any).id, {
+    name: p.name,
+    qty: q,
+    unit,
+    total,
+    currency: p.currency,
+  });
+}
+
+async function sendPaymentChooser(
+  chat_id: number,
+  orderId: string,
+  order: { name: string; qty: number; unit: number; total: number; currency: string },
+) {
+  const cfg = await loadCfg();
+  const methods = enabledMethods(cfg);
+  const shortId = orderId.slice(0, 8);
+
+  if (!methods.length) {
+    await sendMessage(chat_id, [
+      `${EMOJI.cross} <b>Payment options not configured yet</b>`,
+      ``,
+      `Admin ne abhi tak koi payment method enable nahi kiya. Kripya support se contact karein.`,
+    ].join('\n'), {
+      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'shop' }]] },
+    });
+    return;
+  }
+
+  const lines: string[] = [
     `${EMOJI.lock} <b>Secure Checkout</b>`,
     ``,
-    `<b>${p.name}</b> × ${q}`,
-    `Unit: ${formatPrice(unit, p.currency)}`,
-    `Total: <b>${formatPrice(total, p.currency)}</b>`,
+    `<b>${order.name}</b> × ${order.qty}`,
+    `Unit: ${formatPrice(order.unit, order.currency)}`,
+    `Total: <b>${formatPrice(order.total, order.currency)}</b>`,
+    `Order: <code>${shortId}</code>`,
     ``,
-    `Tap below to complete your payment. Your license will be delivered here automatically.`,
-  ].join('\n'), {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: `${EMOJI.pay} Pay ${formatPrice(total, p.currency)}`, url: payUrl }],
-        [{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }],
-      ],
-    },
-  });
+    `Payment method choose karein — sab kuch yahi chat me hoga.`,
+  ];
+
+  // Show equivalent amount preview per method
+  const previewOrder = { total_cents: order.total, currency: order.currency };
+  const previews = methods.map((m) => `• ${methodLabel(m)} — <b>${expectedAmount(previewOrder, m, cfg).display}</b>`);
+  lines.push('', ...previews);
+
+  const buttons: InlineButton[][] = methods.map((m) => [
+    { text: `${EMOJI.pay} ${methodLabel(m)}`, callback_data: `pm:${m}:${orderId}` },
+  ]);
+  buttons.push([{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }]);
+
+  await sendMessage(chat_id, lines.join('\n'), { reply_markup: { inline_keyboard: buttons } });
+}
+
+async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: string) {
+  const { data: order } = await admin()
+    .from('orders')
+    .select('id,total_cents,currency,status')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (!order) {
+    await sendMessage(chat_id, `${EMOJI.cross} Order not found.`);
+    return;
+  }
+  if ((order as any).status !== 'pending') {
+    await sendMessage(chat_id, `${EMOJI.check} Order already <b>${(order as any).status}</b>.`);
+    return;
+  }
+  const { text, photo } = await buildPaymentInstruction(order as any, method);
+  const reply_markup = {
+    inline_keyboard: [
+      [{ text: `${EMOJI.back} Change method`, callback_data: `pm_back:${orderId}` }],
+      [{ text: `${EMOJI.cross} Cancel`, callback_data: 'shop' }],
+    ],
+  };
+  if (photo) {
+    await sendPhoto(chat_id, photo, text, { reply_markup });
+  } else {
+    await sendMessage(chat_id, text, { reply_markup });
+  }
 }
 
 async function sendOrders(chat_id: number, telegram_id: number) {
@@ -811,6 +883,24 @@ async function handleUpdate(update: any) {
     // to /start.
     if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
     if (from && await handlePendingQty(chat_id, from.id, text)) return;
+
+    // Payment reference (UTR / crypto tx hash) detection — takes priority
+    // over generic /start fallback so users can just paste the reference.
+    if (from) {
+      const det = detectReference(text);
+      if (det) {
+        const res = await submitReferenceFromChat({
+          telegram_id: from.id,
+          chat_id,
+          ref: det.ref,
+          method: det.method,
+        });
+        if (res.handled) {
+          if (res.message) await sendMessage(chat_id, res.message);
+          return;
+        }
+      }
+    }
 
     if (text.startsWith('/admin')) {
       await userUpsert;
@@ -899,6 +989,25 @@ async function handleUpdate(update: any) {
       else if (data.startsWith('b:')) {
         const [, pid, n] = data.split(':');
         if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
+      }
+      else if (data.startsWith('pm:')) {
+        const [, method, orderId] = data.split(':');
+        if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId);
+      }
+      else if (data.startsWith('pm_back:')) {
+        const orderId = data.slice('pm_back:'.length);
+        // Rebuild chooser from order + first item
+        const { data: o } = await admin().from('orders').select('id,total_cents,currency,order_items(product_name_snapshot,quantity,unit_price_cents)').eq('id', orderId).maybeSingle();
+        if (o) {
+          const it = (o as any).order_items?.[0];
+          await sendPaymentChooser(chat_id, orderId, {
+            name: it?.product_name_snapshot ?? 'Order',
+            qty: it?.quantity ?? 1,
+            unit: it?.unit_price_cents ?? (o as any).total_cents,
+            total: (o as any).total_cents,
+            currency: (o as any).currency,
+          });
+        }
       }
     } finally {}
     return;
