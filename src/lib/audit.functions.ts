@@ -10,7 +10,7 @@ export type AuditRow = {
   attempts: number | null;
   error: string | null;
   permanent: boolean | null;
-  context: Record<string, unknown>;
+  context: Record<string, any>;
   createdAt: string;
 };
 
