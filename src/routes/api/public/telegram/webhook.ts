@@ -128,6 +128,21 @@ async function sendHome(chat_id: number, firstName?: string) {
   });
 }
 
+const START_SPLASH_EMOJI_ID = '5384145649073663083';
+
+async function sendStartSplash(chat_id: number) {
+  try {
+    const sent = await sendMessage(
+      chat_id,
+      `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`,
+    ) as { message_id: number };
+    await new Promise((r) => setTimeout(r, 3000));
+    if (sent?.message_id) await deleteMessage(chat_id, sent.message_id);
+  } catch {
+    // splash is decorative — ignore failures
+  }
+}
+
 // ────────────────────────────────────────────────────────────────
 // In-bot admin panel
 // ────────────────────────────────────────────────────────────────
