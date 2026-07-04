@@ -442,7 +442,8 @@ async function flashShopPopup(chat_id: number) {
     const message_id = (sent as any)?.message_id;
     // Keep just long enough for Telegram to trigger the premium emoji effect,
     // then vanish the message quickly so the chat stays clean.
-    await new Promise((r) => setTimeout(r, 600));
+    // Let the premium emoji effect play in full, then vanish the message.
+    await new Promise((r) => setTimeout(r, 2500));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
@@ -839,6 +840,15 @@ async function handleUpdate(update: any) {
       ? upsertTelegramUser({ id: from.id, chat_id, ...from }).catch((err) => console.error('telegram user upsert failed', err))
       : Promise.resolve();
     await answerCallbackQuery(cq.id).catch(() => {});
+
+    // Navigation clicks replace the previous view instead of stacking a new
+    // message in the chat. Skip for in-place edits (quantity picker) and
+    // admin flows which manage their own message lifecycle.
+    const prevMessageId = (cq as any).message?.message_id;
+    const isInPlaceEdit = data.startsWith('q:') || data.startsWith('adm:');
+    if (prevMessageId && !isInPlaceEdit) {
+      void deleteMessage(chat_id, prevMessageId);
+    }
 
     try {
       if (data.startsWith('adm:')) {
