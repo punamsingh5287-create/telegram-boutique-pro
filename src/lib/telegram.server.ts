@@ -123,11 +123,14 @@ export function answerCallbackQuery(callback_query_id: string, text?: string, sh
   return call('answerCallbackQuery', { callback_query_id, text, show_alert });
 }
 
-export function setMyCommands(commands: { command: string; description: string }[]) {
-  return call('setMyCommands', { commands });
+export function setMyCommands(
+  commands: { command: string; description: string }[],
+  opts: { scope?: Record<string, unknown>; language_code?: string } = {},
+) {
+  return call('setMyCommands', { commands, ...opts });
 }
 
-export function setChatMenuButton(payload: { chat_id?: number; menu_button: any }) {
+export function setChatMenuButton(payload: { chat_id?: number | string; menu_button: any }) {
   return call('setChatMenuButton', payload);
 }
 
