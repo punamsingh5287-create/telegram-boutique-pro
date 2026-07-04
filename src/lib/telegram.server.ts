@@ -138,8 +138,12 @@ export function sendPhoto(chat_id: number | string, photo: string, caption?: str
   reply_markup?: InlineReplyMarkup;
   parse_mode?: 'HTML' | 'MarkdownV2';
 } = {}) {
-  return withPremiumReplyMarkup(opts.reply_markup).then((reply_markup) =>
-    call('sendPhoto', { chat_id, photo, caption, parse_mode: opts.parse_mode ?? 'HTML', ...opts, reply_markup }),
+  const parse_mode = opts.parse_mode ?? 'HTML';
+  return Promise.all([
+    caption ? withPremiumEmojis(caption, parse_mode) : Promise.resolve(caption),
+    withPremiumReplyMarkup(opts.reply_markup),
+  ]).then(([renderedCaption, reply_markup]) =>
+    call('sendPhoto', { chat_id, photo, caption: renderedCaption, parse_mode, ...opts, reply_markup }),
   );
 }
 
