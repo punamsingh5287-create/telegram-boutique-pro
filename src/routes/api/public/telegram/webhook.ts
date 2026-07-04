@@ -729,9 +729,11 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      // Ensure the persistent Menu (hamburger) button + commands are registered.
+      await ensureMenuInstalled();
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
-      flashStartSplash(chat_id).catch(() => {});
+      await flashStartSplash(chat_id);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
     } else if (text.startsWith('/orders')) {
