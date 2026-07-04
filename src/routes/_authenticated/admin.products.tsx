@@ -24,7 +24,7 @@ function money(c: number, cur: string) {
 const empty = {
   slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
   priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "license_key",
-  active: true, featured: false,
+  active: true, featured: false, bulkTiers: [] as Array<{ min: number; max: number | null; unitCents: number }>,
 };
 
 const btnPrimary = "btn-premium";
@@ -239,6 +239,11 @@ function ProductSheet({
           {(initial as any).id && (
             <LicenseKeysSection productId={(initial as any).id} />
           )}
+          <BulkTiersEditor
+            currency={form.currency}
+            tiers={form.bulkTiers ?? []}
+            onChange={(tiers) => setForm({ ...form, bulkTiers: tiers })}
+          />
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> <TgEmoji>✅</TgEmoji> Active
