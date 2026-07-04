@@ -10,6 +10,19 @@ import {
   EMOJI,
   type InlineButton,
 } from '@/lib/telegram.server';
+import {
+  getBotConfig,
+  saveBotConfig,
+  renderButtonText,
+  isAdmin,
+  ensureFirstAdmin,
+  getAdminState,
+  setAdminState,
+  clearAdminState,
+  BUTTON_KEYS,
+  type ButtonKey,
+  type BotConfig,
+} from '@/lib/telegram-bot-config.server';
 
 function deriveWebhookSecret(botToken: string): string {
   return createHash('sha256').update(`telegram-webhook:${botToken}`).digest('base64url');
@@ -51,31 +64,215 @@ async function upsertTelegramUser(u: {
   );
 }
 
-function homeKeyboard(): InlineButton[][] {
+function homeKeyboard(cfg: BotConfig): InlineButton[][] {
+  const b = cfg.buttons;
   return [
-    [{ text: `${EMOJI.shop} Shop`, callback_data: 'shop' }, { text: `${EMOJI.trending} Trending`, callback_data: 'trending' }],
-    [{ text: `${EMOJI.orders} My Orders`, callback_data: 'orders' }, { text: `${EMOJI.key} My Products`, callback_data: 'products' }],
-    [{ text: `${EMOJI.coupon} Coupons`, callback_data: 'coupons' }, { text: `${EMOJI.user} Profile`, callback_data: 'profile' }],
-    [{ text: `${EMOJI.support} Support`, callback_data: 'support' }, { text: `${EMOJI.bell} Announcements`, callback_data: 'news' }],
+    [{ text: renderButtonText(b.shop), callback_data: 'shop' },     { text: renderButtonText(b.trending), callback_data: 'trending' }],
+    [{ text: renderButtonText(b.orders), callback_data: 'orders' }, { text: renderButtonText(b.products), callback_data: 'products' }],
+    [{ text: renderButtonText(b.coupons), callback_data: 'coupons' },{ text: renderButtonText(b.profile), callback_data: 'profile' }],
+    [{ text: renderButtonText(b.support), callback_data: 'support' },{ text: renderButtonText(b.news), callback_data: 'news' }],
   ];
 }
 
-function welcomeText(firstName?: string): string {
-  const name = firstName ? `, <b>${firstName}</b>` : '';
-  return [
-    `${EMOJI.gem} <b>Welcome to Mateo Store</b>${name}`,
-    ``,
-    `Premium digital goods, delivered instantly.`,
-    `${EMOJI.bolt} Instant activation  ·  ${EMOJI.lock} Secure payments  ·  ${EMOJI.star} Trusted licenses`,
-    ``,
-    `Choose an option below to get started.`,
-  ].join('\n');
+function welcomeText(cfg: BotConfig, firstName?: string): string {
+  const name_line = firstName ? `, <b>${escapeHtml(firstName)}</b>` : '';
+  let text = cfg.welcome_text.replace(/\{name_line\}/g, name_line).replace(/\{name\}/g, firstName ? escapeHtml(firstName) : '');
+  if (cfg.welcome_footer) text += '\n\n' + cfg.welcome_footer;
+  return text;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 }
 
 async function sendHome(chat_id: number, firstName?: string) {
-  await sendMessage(chat_id, welcomeText(firstName), {
-    reply_markup: { inline_keyboard: homeKeyboard() },
+  const cfg = await getBotConfig();
+  await sendMessage(chat_id, welcomeText(cfg, firstName), {
+    reply_markup: { inline_keyboard: homeKeyboard(cfg) },
   });
+}
+
+// ────────────────────────────────────────────────────────────────
+// In-bot admin panel
+// ────────────────────────────────────────────────────────────────
+
+function adminMenuKeyboard(): InlineButton[][] {
+  return [
+    [{ text: '✏️ Welcome text',   callback_data: 'adm:edit:welcome' }],
+    [{ text: '📝 Welcome footer', callback_data: 'adm:edit:footer' }],
+    [{ text: '🔘 Buttons & emojis', callback_data: 'adm:btns' }],
+    [{ text: '💬 Support handle', callback_data: 'adm:edit:support' }],
+    [{ text: '👥 Admins',         callback_data: 'adm:edit:admins' }],
+    [{ text: '👁 Preview /start', callback_data: 'adm:preview' }],
+    [{ text: '❌ Close',          callback_data: 'adm:close' }],
+  ];
+}
+
+function adminButtonsKeyboard(cfg: BotConfig): InlineButton[][] {
+  const rows: InlineButton[][] = BUTTON_KEYS.map((k) => ([{
+    text: `${cfg.buttons[k].emoji} ${cfg.buttons[k].label}`,
+    callback_data: `adm:btn:${k}`,
+  }]));
+  rows.push([{ text: '↩️ Back', callback_data: 'adm:menu' }]);
+  return rows;
+}
+
+function adminButtonEditKeyboard(k: ButtonKey): InlineButton[][] {
+  return [
+    [{ text: '✏️ Edit label',  callback_data: `adm:be:${k}:label` }],
+    [{ text: '😀 Edit emoji',  callback_data: `adm:be:${k}:emoji` }],
+    [{ text: '💎 Set Premium emoji ID', callback_data: `adm:be:${k}:premium` }],
+    [{ text: '🗑 Clear Premium emoji',  callback_data: `adm:be:${k}:clearpremium` }],
+    [{ text: '↩️ Back', callback_data: 'adm:btns' }],
+  ];
+}
+
+async function sendAdminMenu(chat_id: number) {
+  await sendMessage(chat_id,
+    '⚙️ <b>Bot Admin Panel</b>\n\nChoose what you want to edit. Every change is live immediately for all users.',
+    { reply_markup: { inline_keyboard: adminMenuKeyboard() } },
+  );
+}
+
+async function sendAdminButtons(chat_id: number) {
+  const cfg = await getBotConfig();
+  await sendMessage(chat_id,
+    '🔘 <b>Buttons</b>\n\nTap a button to change its label, emoji, or Premium emoji ID.',
+    { reply_markup: { inline_keyboard: adminButtonsKeyboard(cfg) } },
+  );
+}
+
+async function sendAdminButtonEdit(chat_id: number, k: ButtonKey) {
+  const cfg = await getBotConfig();
+  const b = cfg.buttons[k];
+  const premium = b.premium_id ? `<code>${b.premium_id}</code>` : '<i>none</i>';
+  await sendMessage(chat_id,
+    [
+      `🔘 <b>${escapeHtml(b.label)}</b>`,
+      ``,
+      `Emoji: ${b.emoji}`,
+      `Premium emoji ID: ${premium}`,
+      ``,
+      `<i>Tip: Premium emoji IDs make the emoji animated for Telegram Premium users. Get one by forwarding a premium sticker to @idstickerbot.</i>`,
+    ].join('\n'),
+    { reply_markup: { inline_keyboard: adminButtonEditKeyboard(k) } },
+  );
+}
+
+async function promptFor(chat_id: number, tg: number, action: any, prompt: string) {
+  await setAdminState(tg, action);
+  await sendMessage(chat_id, prompt + '\n\nSend the new value as your next message, or /cancel to abort.');
+}
+
+async function handleAdminCallback(chat_id: number, tg: number, data: string): Promise<boolean> {
+  if (!data.startsWith('adm:')) return false;
+  if (!(await isAdmin(tg))) return true; // silently ignore
+
+  const parts = data.split(':');
+  const op = parts[1];
+
+  if (op === 'menu') { await sendAdminMenu(chat_id); return true; }
+  if (op === 'btns') { await sendAdminButtons(chat_id); return true; }
+  if (op === 'close') { await sendMessage(chat_id, '✅ Admin panel closed.'); return true; }
+  if (op === 'preview') { await sendHome(chat_id, 'Preview'); return true; }
+
+  if (op === 'edit') {
+    const target = parts[2];
+    if (target === 'welcome') {
+      const cfg = await getBotConfig();
+      await promptFor(chat_id, tg, { action: 'edit_welcome' },
+        `✏️ <b>Welcome text</b>\n\nCurrent:\n<code>${escapeHtml(cfg.welcome_text)}</code>\n\nUse HTML tags. Placeholder <code>{name_line}</code> inserts <i>, First Name</i>. You can paste Telegram Premium emojis directly as <code>&lt;tg-emoji emoji-id="ID"&gt;😀&lt;/tg-emoji&gt;</code>.`);
+    } else if (target === 'footer') {
+      const cfg = await getBotConfig();
+      await promptFor(chat_id, tg, { action: 'edit_footer' },
+        `📝 <b>Welcome footer</b>\n\nCurrent:\n<code>${escapeHtml(cfg.welcome_footer || '(empty)')}</code>\n\nSend "-" to clear.`);
+    } else if (target === 'support') {
+      const cfg = await getBotConfig();
+      await promptFor(chat_id, tg, { action: 'edit_support' },
+        `💬 <b>Support handle</b>\n\nCurrent: @${cfg.support_handle}\n\nSend the new username without @.`);
+    } else if (target === 'admins') {
+      const cfg = await getBotConfig();
+      await promptFor(chat_id, tg, { action: 'edit_admins' },
+        `👥 <b>Admins</b>\n\nCurrent IDs: <code>${cfg.admin_ids.join(', ')}</code>\n\nSend a comma-separated list of Telegram numeric IDs. You must include your own (${tg}) to keep access.`);
+    }
+    return true;
+  }
+
+  if (op === 'btn') {
+    const k = parts[2] as ButtonKey;
+    if (BUTTON_KEYS.includes(k)) await sendAdminButtonEdit(chat_id, k);
+    return true;
+  }
+
+  if (op === 'be') {
+    const k = parts[2] as ButtonKey;
+    const kind = parts[3];
+    if (!BUTTON_KEYS.includes(k)) return true;
+    if (kind === 'label') {
+      await promptFor(chat_id, tg, { action: 'edit_btn_label', key: k },
+        `✏️ Send the new <b>label</b> for the "${k}" button.`);
+    } else if (kind === 'emoji') {
+      await promptFor(chat_id, tg, { action: 'edit_btn_emoji', key: k },
+        `😀 Send the new <b>emoji</b> for the "${k}" button (one emoji character).`);
+    } else if (kind === 'premium') {
+      await promptFor(chat_id, tg, { action: 'edit_btn_premium', key: k },
+        `💎 Send the <b>custom_emoji_id</b> from Telegram Premium (numeric string). Forward a premium emoji to @idstickerbot to get it.`);
+    } else if (kind === 'clearpremium') {
+      const cfg = await getBotConfig();
+      cfg.buttons[k].premium_id = null;
+      await saveBotConfig(cfg);
+      await sendMessage(chat_id, `🗑 Premium emoji cleared for "${k}".`);
+      await sendAdminButtonEdit(chat_id, k);
+    }
+    return true;
+  }
+
+  return true;
+}
+
+/** Returns true if the message consumed an admin-input state. */
+async function handleAdminInputText(chat_id: number, tg: number, text: string): Promise<boolean> {
+  const state = await getAdminState(tg);
+  if (!state) return false;
+  if (text.trim() === '/cancel') {
+    await clearAdminState(tg);
+    await sendMessage(chat_id, '❌ Cancelled.');
+    return true;
+  }
+  const cfg = await getBotConfig();
+  try {
+    switch (state.action) {
+      case 'edit_welcome': cfg.welcome_text = text; break;
+      case 'edit_footer':  cfg.welcome_footer = text.trim() === '-' ? '' : text; break;
+      case 'edit_support': cfg.support_handle = text.trim().replace(/^@/, ''); break;
+      case 'edit_admins': {
+        const ids = text.split(/[,\s]+/).map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0);
+        if (!ids.includes(tg)) throw new Error(`You must include your own ID (${tg}).`);
+        cfg.admin_ids = ids;
+        break;
+      }
+      case 'edit_btn_label': cfg.buttons[state.key].label = text.trim().slice(0, 32); break;
+      case 'edit_btn_emoji': cfg.buttons[state.key].emoji = text.trim().slice(0, 8); break;
+      case 'edit_btn_premium': {
+        const id = text.trim();
+        if (!/^\d+$/.test(id)) throw new Error('Premium emoji ID must be a numeric string.');
+        cfg.buttons[state.key].premium_id = id;
+        break;
+      }
+    }
+    await saveBotConfig(cfg);
+    await clearAdminState(tg);
+    await sendMessage(chat_id, '✅ Saved. Here is a live preview:');
+    if (state.action.startsWith('edit_btn')) {
+      await sendAdminButtonEdit(chat_id, (state as any).key);
+    } else {
+      await sendHome(chat_id, 'Preview');
+      await sendAdminMenu(chat_id);
+    }
+  } catch (err: any) {
+    await sendMessage(chat_id, `❌ ${escapeHtml(err.message ?? String(err))}\n\nStill waiting — send a valid value or /cancel.`);
+  }
+  return true;
 }
 
 async function sendShop(chat_id: number) {
@@ -259,7 +456,20 @@ async function handleUpdate(update: any) {
     if (from) await upsertTelegramUser({ id: from.id, chat_id, ...from });
 
     const text: string = msg.text ?? '';
-    if (text.startsWith('/start')) {
+
+    // Admin input state takes priority so free-form values don't fall through
+    // to /start.
+    if (from && await handleAdminInputText(chat_id, from.id, text)) return;
+
+    if (text.startsWith('/admin')) {
+      if (!from) return;
+      const ok = await ensureFirstAdmin(from.id);
+      if (!ok) {
+        await sendMessage(chat_id, '⛔ You are not an admin.');
+        return;
+      }
+      await sendAdminMenu(chat_id);
+    } else if (text.startsWith('/start')) {
       await sendHome(chat_id, from?.first_name);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
@@ -274,6 +484,7 @@ async function handleUpdate(update: any) {
         `/shop — Browse products`,
         `/orders — Your orders`,
         `/products — Delivered licenses`,
+        `/admin — Bot admin panel (admins only)`,
       ].join('\n'));
     } else {
       await sendHome(chat_id, from?.first_name);
@@ -289,13 +500,19 @@ async function handleUpdate(update: any) {
     if (from && chat_id) await upsertTelegramUser({ id: from.id, chat_id, ...from });
 
     try {
+      if (data.startsWith('adm:')) {
+        await handleAdminCallback(chat_id, from.id, data);
+      }
       if (data === 'home') await sendHome(chat_id, from?.first_name);
       else if (data === 'shop' || data === 'trending') await sendShop(chat_id);
       else if (data === 'orders') await sendOrders(chat_id, from.id);
       else if (data === 'products') await sendMyProducts(chat_id, from.id);
       else if (data === 'coupons') await sendMessage(chat_id, `${EMOJI.coupon} Coupons launching soon.`);
       else if (data === 'profile') await sendMessage(chat_id, `${EMOJI.user} <b>Profile</b>\n\nTelegram ID: <code>${from.id}</code>\nUsername: @${from.username ?? '—'}`);
-      else if (data === 'support') await sendMessage(chat_id, `${EMOJI.support} Contact @${process.env.SUPPORT_HANDLE ?? 'MateoSupport'} for help.`);
+      else if (data === 'support') {
+        const cfg = await getBotConfig();
+        await sendMessage(chat_id, `${EMOJI.support} Contact @${cfg.support_handle} for help.`);
+      }
       else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} No announcements yet.`);
       else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2));
       else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4));
