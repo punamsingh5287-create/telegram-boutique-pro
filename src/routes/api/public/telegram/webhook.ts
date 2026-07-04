@@ -130,17 +130,17 @@ async function sendHome(chat_id: number, firstName?: string) {
 
 const START_SPLASH_EMOJI_ID = '5384145649073663083';
 
-async function sendStartSplash(chat_id: number) {
-  try {
-    const sent = await sendMessage(
-      chat_id,
-      `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`,
-    ) as { message_id: number };
-    await new Promise((r) => setTimeout(r, 3000));
-    if (sent?.message_id) await deleteMessage(chat_id, sent.message_id);
-  } catch {
-    // splash is decorative — ignore failures
-  }
+// Fire-and-forget splash: sends the premium emoji, schedules its deletion
+// after a short delay in the background, and returns immediately so the
+// welcome message can be sent right after with no perceptible lag.
+function fireStartSplash(chat_id: number): Promise<void> {
+  return sendMessage(chat_id, `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`)
+    .then((sent: any) => {
+      if (sent?.message_id) {
+        setTimeout(() => { deleteMessage(chat_id, sent.message_id).catch(() => {}); }, 900);
+      }
+    })
+    .catch(() => {});
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -589,8 +589,12 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
-      await sendStartSplash(chat_id);
-      await sendHome(chat_id, from?.first_name);
+      // Kick off splash and welcome in parallel so the user sees the home
+      // menu instantly instead of waiting on the decorative emoji.
+      await Promise.all([
+        fireStartSplash(chat_id),
+        sendHome(chat_id, from?.first_name),
+      ]);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
     } else if (text.startsWith('/orders')) {
