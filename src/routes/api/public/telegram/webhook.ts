@@ -214,7 +214,7 @@ async function sendAdminEmojiMap(chat_id: number) {
       '<b>Current mappings:</b>',
       list,
       '',
-      '<i>Requires the bot owner account to have Telegram Premium. Get a custom_emoji_id by forwarding a premium emoji to @idstickerbot. Tap a row to remove it.</i>',
+      '<i>Send the Premium emoji itself when adding a mapping. The bot captures its value automatically. Tap a row to remove it.</i>',
     ].join('\n'),
     { reply_markup: { inline_keyboard: rows } },
   );
@@ -263,7 +263,7 @@ async function handleAdminCallback(chat_id: number, tg: number, data: string): P
     if (target === 'welcome') {
       const cfg = await getBotConfig();
       await promptFor(chat_id, tg, { action: 'edit_welcome' },
-        `✏️ <b>Welcome text</b>\n\nCurrent:\n<code>${escapeHtml(cfg.welcome_text)}</code>\n\nUse HTML tags. Placeholder <code>{name_line}</code> inserts <i>, First Name</i>. You can paste Telegram Premium emojis directly as <code>&lt;tg-emoji emoji-id="ID"&gt;😀&lt;/tg-emoji&gt;</code>.`);
+        `✏️ <b>Welcome text</b>\n\nCurrent:\n<code>${escapeHtml(cfg.welcome_text)}</code>\n\nUse HTML tags. Placeholder <code>{name_line}</code> inserts <i>, First Name</i>. Plain emojis from your Premium emoji map will auto-render as Premium emojis.`);
     } else if (target === 'footer') {
       const cfg = await getBotConfig();
       await promptFor(chat_id, tg, { action: 'edit_footer' },

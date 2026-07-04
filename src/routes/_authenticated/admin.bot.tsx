@@ -142,8 +142,8 @@ function BotPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Paste a plain emoji on the left (e.g. 💎) and its Telegram <code>custom_emoji_id</code> on
-            the right. Get IDs by forwarding a premium emoji to <code>@idstickerbot</code>.
+            Best flow: add mappings from the Telegram admin panel by sending the Premium emoji itself.
+            Saved mappings appear here for review or cleanup.
           </p>
           {emojiRows.length === 0 && (
             <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
