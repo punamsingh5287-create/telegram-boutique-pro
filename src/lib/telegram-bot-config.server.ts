@@ -66,6 +66,17 @@ const DEFAULTS: BotConfig = {
   emoji_map: {},
 };
 
+function mergeButtons(storedButtons?: Partial<Record<string, Partial<BotButton>>>): Record<string, BotButton> {
+  const merged: Record<string, BotButton> = { ...DEFAULTS.buttons };
+  for (const key of BUTTON_KEYS) {
+    merged[key] = {
+      ...DEFAULTS.buttons[key],
+      ...(storedButtons?.[key] ?? {}),
+    };
+  }
+  return merged;
+}
+
 export async function getBotConfig(): Promise<BotConfig> {
   const { data } = await admin()
     .from('app_settings').select('value').eq('key', 'bot_config').maybeSingle();
@@ -73,7 +84,7 @@ export async function getBotConfig(): Promise<BotConfig> {
   return {
     ...DEFAULTS,
     ...stored,
-    buttons: { ...DEFAULTS.buttons, ...(stored.buttons ?? {}) },
+    buttons: mergeButtons(stored.buttons),
     emoji_map: { ...DEFAULTS.emoji_map, ...(stored.emoji_map ?? {}) },
   };
 }
