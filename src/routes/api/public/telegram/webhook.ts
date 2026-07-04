@@ -153,7 +153,7 @@ async function flashStartSplash(chat_id: number): Promise<void> {
     );
     await new Promise((r) => setTimeout(r, 250));
     await deleteMessage(chat_id, sent.message_id).catch(() => null);
-    await admin().from('app_settings').delete().eq('key', stateKey).catch(() => null as any);
+    await admin().from('app_settings').delete().eq('key', stateKey);
   } catch {
     // Decorative only — never block /start.
   }
