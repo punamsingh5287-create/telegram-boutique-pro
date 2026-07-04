@@ -10,6 +10,7 @@ import {
   saveBotConfigAdmin,
   type BotConfig,
 } from "@/lib/admin-bot-config.functions";
+import { uploadProductImage } from "@/lib/admin-uploads.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/bot")({
   head: () => ({ meta: [{ title: "Bot content · Admin" }, { name: "robots", content: "noindex,nofollow" }] }),
@@ -212,6 +213,70 @@ function BotPage() {
               className={inp}
               placeholder="Powered by ✨ Mateo Store"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+              Welcome cover image (optional)
+            </label>
+            <input
+              value={form.welcome_image_url ?? ""}
+              onChange={(e) => setForm({ ...form, welcome_image_url: e.target.value })}
+              className={inp}
+              placeholder="https://…"
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <label className="btn-ghost-color cursor-pointer text-xs">
+                <TgEmoji>📤</TgEmoji> Upload welcome image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.currentTarget.value = "";
+                    if (!file) return;
+                    if (file.size > 8 * 1024 * 1024) { toast.error("Max 8 MB"); return; }
+                    try {
+                      const reader = new FileReader();
+                      const base64: string = await new Promise((res, rej) => {
+                        reader.onload = () => {
+                          const r = reader.result as string;
+                          const i = r.indexOf(",");
+                          res(i >= 0 ? r.slice(i + 1) : r);
+                        };
+                        reader.onerror = () => rej(reader.error);
+                        reader.readAsDataURL(file);
+                      });
+                      const res = await uploadProductImage({ data: {
+                        base64, filename: file.name, contentType: file.type || "image/jpeg", folder: "welcome",
+                      } });
+                      if (!res.ok) throw new Error(res.error);
+                      setForm({ ...form, welcome_image_url: res.url });
+                      toast.success("Welcome image uploaded — remember to Save");
+                    } catch (err: any) {
+                      toast.error(err?.message ?? "Upload failed");
+                    }
+                  }}
+                />
+              </label>
+              {form.welcome_image_url && (
+                <button
+                  type="button"
+                  className="btn-danger text-xs"
+                  onClick={() => setForm({ ...form, welcome_image_url: "" })}
+                >
+                  <TgEmoji>🗑️</TgEmoji> Clear
+                </button>
+              )}
+            </div>
+            {form.welcome_image_url && (
+              <img
+                src={form.welcome_image_url}
+                alt="welcome preview"
+                className="mt-2 h-32 w-full max-w-sm rounded-md border object-cover"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
