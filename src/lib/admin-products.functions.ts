@@ -26,6 +26,16 @@ export type BulkTier = {
   unitCents: number;
 };
 
+const DEFAULT_BULK_TIERS: BulkTier[] = [
+  { min: 1, max: 9, unitCents: 110 },
+  { min: 10, max: 19, unitCents: 100 },
+  { min: 20, max: 49, unitCents: 90 },
+  { min: 50, max: 99, unitCents: 80 },
+  { min: 100, max: 199, unitCents: 70 },
+  { min: 200, max: 299, unitCents: 65 },
+  { min: 300, max: null, unitCents: 60 },
+];
+
 function sanitizeTiers(input: unknown): BulkTier[] {
   if (!Array.isArray(input)) return [];
   const out: BulkTier[] = [];
@@ -119,7 +129,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       deliveryType: (data.deliveryType || "license_key").slice(0, 50),
       active: !!data.active,
       featured: !!data.featured,
-      bulkTiers: sanitizeTiers(data.bulkTiers),
+      bulkTiers: sanitizeTiers(data.bulkTiers).length ? sanitizeTiers(data.bulkTiers) : DEFAULT_BULK_TIERS,
     };
   })
   .handler(async ({ data, context }): Promise<{ ok: true; product: AdminProduct } | { ok: false; error: string }> => {
