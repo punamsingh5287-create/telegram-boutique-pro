@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { listAdminProducts, saveProduct, deleteProduct, type AdminProduct } from "@/lib/admin-products.functions";
+import { listAdminProducts, saveProduct, deleteProduct, getProductStock, addDigitalAssets, type AdminProduct } from "@/lib/admin-products.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Pencil, Plus, Trash2, Sparkles } from "lucide-react";
@@ -23,7 +23,7 @@ function money(c: number, cur: string) {
 
 const empty = {
   slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
-  priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "digital",
+  priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "license_key",
   active: true, featured: false,
 };
 
@@ -227,11 +227,14 @@ function ProductSheet({
           </Field>
           <Field label={<><TgEmoji>🚚</TgEmoji> Delivery type</>}>
             <select value={form.deliveryType} onChange={(e) => setForm({ ...form, deliveryType: e.target.value })} className={inputCls}>
-              <option value="digital">💾 Digital file</option>
-              <option value="link">🔗 Access link</option>
-              <option value="manual">✋ Manual fulfillment</option>
+              <option value="license_key">🔑 License key</option>
+              <option value="file">💾 Digital file / link</option>
+              <option value="text">📝 Text payload</option>
             </select>
           </Field>
+          {(initial as any).id && (
+            <LicenseKeysSection productId={(initial as any).id} />
+          )}
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> <TgEmoji>✅</TgEmoji> Active
@@ -261,5 +264,66 @@ function Field({ label, hint, children }: { label: React.ReactNode; hint?: strin
       </span>
       {children}
     </label>
+  );
+}
+
+function LicenseKeysSection({ productId }: { productId: string }) {
+  const qc = useQueryClient();
+  const [keys, setKeys] = useState("");
+  const { data: stock, refetch } = useQuery({
+    queryKey: ["admin", "product-stock", productId],
+    queryFn: async () => {
+      const res = await getProductStock({ data: { productId } });
+      if ("error" in res) throw new Error(res.error);
+      return res;
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const payloads = keys.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      if (!payloads.length) throw new Error("Paste at least one key or link");
+      const res = await addDigitalAssets({ data: { productId, payloads } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(`Added ${res.inserted} deliverables`);
+      setKeys("");
+      refetch();
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="rounded-lg border bg-gradient-to-br from-amber-500/5 to-fuchsia-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold flex items-center gap-1">
+          <TgEmoji variant="gold">🔑</TgEmoji> Auto-delivery inventory
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {stock ? `${stock.available} available · ${stock.claimed} delivered` : "…"}
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Paste one key / link / text payload <b>per line</b>. On payment success, one is auto-sent to the buyer on Telegram.
+      </p>
+      <textarea
+        rows={4}
+        value={keys}
+        onChange={(e) => setKeys(e.target.value)}
+        placeholder={"KEY-AAAA-BBBB-1111\nKEY-AAAA-BBBB-2222\nhttps://drive.google.com/…"}
+        className={inputCls + " font-mono text-xs"}
+      />
+      <button
+        type="button"
+        disabled={add.isPending || !keys.trim()}
+        onClick={() => add.mutate()}
+        className="btn-ghost-color w-full py-2 text-sm disabled:opacity-50"
+      >
+        {add.isPending ? <><TgEmoji>⏳</TgEmoji> Adding…</> : <><TgEmoji>➕</TgEmoji> Add to inventory</>}
+      </button>
+    </div>
   );
 }
