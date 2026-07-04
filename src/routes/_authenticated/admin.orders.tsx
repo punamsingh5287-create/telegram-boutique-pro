@@ -77,7 +77,7 @@ function OrdersPage() {
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 const value = (e.target as HTMLInputElement).value.trim();
-                navigate({ search: (s) => ({ ...s, q: value, page: 1 }) });
+                navigate({ search: (s: any) => ({ ...s, q: value, page: 1 }) });
               }
             }}
             className="w-full rounded-md border bg-background py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -87,7 +87,7 @@ function OrdersPage() {
           {(["all", "pending", "paid", "delivered", "failed", "refunded"] as const).map((s) => (
             <button
               key={s}
-              onClick={() => navigate({ search: (prev) => ({ ...prev, status: s, page: 1 }) })}
+              onClick={() => navigate({ search: (prev: any) => ({ ...prev, status: s, page: 1 }) })}
               className={
                 "rounded-md border px-3 py-1.5 text-xs capitalize transition-colors " +
                 (status === s
@@ -180,14 +180,14 @@ function OrdersPage() {
         <div className="flex gap-2">
           <button
             disabled={page <= 1}
-            onClick={() => navigate({ search: (s) => ({ ...s, page: Math.max(1, page - 1) }) })}
+            onClick={() => navigate({ search: (s: any) => ({ ...s, page: Math.max(1, page - 1) }) })}
             className="rounded-md border bg-background px-3 py-1.5 text-sm disabled:opacity-40"
           >
             Previous
           </button>
           <button
             disabled={page >= totalPages}
-            onClick={() => navigate({ search: (s) => ({ ...s, page: page + 1 }) })}
+            onClick={() => navigate({ search: (s: any) => ({ ...s, page: page + 1 }) })}
             className="rounded-md border bg-background px-3 py-1.5 text-sm disabled:opacity-40"
           >
             Next
