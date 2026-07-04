@@ -906,11 +906,14 @@ async function handleUpdate(update: any) {
       : Promise.resolve();
 
     const text: string = msg.text ?? '';
+    // Prefetch language once per update so all downstream sends stay smooth
+    // even when Postgres has queue depth.
+    const lang: Lang = from ? await getUserLang(from.id) : 'en';
 
     // Admin input state takes priority so free-form values don't fall through
     // to /start.
     if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
-    if (from && await handlePendingQty(chat_id, from.id, text)) return;
+    if (from && await handlePendingQty(chat_id, from.id, text, lang)) return;
 
     // Payment reference (UTR / crypto tx hash) detection — takes priority
     // over generic /start fallback so users can just paste the reference.
@@ -940,30 +943,27 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
-      // Just append a fresh home menu. Do NOT mass-delete recent messages —
-      // that made the chat "bounce" as many messages vanished at once. The
-      // reference bot leaves history intact and only adds the new menu.
-      await sendHome(chat_id, from?.first_name);
+      await sendHome(chat_id, from?.first_name, lang);
       await flashStartSplash(chat_id);
     } else if (text.startsWith('/shop')) {
-      await sendShop(chat_id);
+      await sendShop(chat_id, lang);
     } else if (text.startsWith('/orders')) {
       await userUpsert;
-      await sendOrders(chat_id, from.id);
+      await sendOrders(chat_id, from.id, lang);
     } else if (text.startsWith('/products')) {
       await userUpsert;
-      await sendMyProducts(chat_id, from.id);
+      await sendMyProducts(chat_id, from.id, lang);
     } else if (text.startsWith('/help')) {
       await sendMessage(chat_id, [
-        `${EMOJI.gem} <b>Mateo Store · Commands</b>`,
-        `/start — Home`,
-        `/shop — Browse products`,
-        `/orders — Your orders`,
-        `/products — Delivered licenses`,
-        `/admin — Bot admin panel (admins only)`,
+        `${EMOJI.gem} ${t(lang, 'help.title')}`,
+        t(lang, 'help.start'),
+        t(lang, 'help.shop'),
+        t(lang, 'help.orders'),
+        t(lang, 'help.products'),
+        t(lang, 'help.admin'),
       ].join('\n'));
     } else {
-      await sendHome(chat_id, from?.first_name);
+      await sendHome(chat_id, from?.first_name, lang);
     }
     return;
   }
@@ -980,6 +980,9 @@ async function handleUpdate(update: any) {
     // Telegram removes the button's loading spinner as soon as this arrives.
     void answerCallbackQuery(cq.id).catch(() => {});
 
+    // Prefetch language & delete old message in parallel — no visible gap on touch.
+    const langP: Promise<Lang> = from ? getUserLang(from.id) : Promise.resolve('en' as Lang);
+
     // Navigation clicks replace the previous view instead of stacking a new
     // message. Delete in parallel with the next send so there's no visible
     // gap on touch.
@@ -989,59 +992,56 @@ async function handleUpdate(update: any) {
       void deleteMessage(chat_id, prevMessageId).catch(() => {});
     }
 
+    const lang: Lang = await langP;
+
     try {
       if (data.startsWith('adm:')) {
         await userUpsert;
         await handleAdminCallback(chat_id, from.id, data);
       }
-      if (data === 'home') await sendHome(chat_id, from?.first_name);
-      else if (data === 'shop' || data === 'trending') await sendShop(chat_id);
-      else if (data === 'orders') { await userUpsert; await sendOrders(chat_id, from.id); }
-      else if (data === 'products') { await userUpsert; await sendMyProducts(chat_id, from.id); }
-      else if (data === 'coupons') await sendMessage(chat_id, `${EMOJI.coupon} Coupons launching soon.`);
-      else if (data === 'profile') await sendMessage(chat_id, `${EMOJI.user} <b>Profile</b>\n\nTelegram ID: <code>${from.id}</code>\nUsername: @${from.username ?? '—'}`);
+      if (data === 'home') await sendHome(chat_id, from?.first_name, lang);
+      else if (data === 'shop' || data === 'trending') await sendShop(chat_id, lang);
+      else if (data === 'orders') { await userUpsert; await sendOrders(chat_id, from.id, lang); }
+      else if (data === 'products') { await userUpsert; await sendMyProducts(chat_id, from.id, lang); }
+      else if (data === 'coupons') await sendMessage(chat_id, `${EMOJI.coupon} ${t(lang, 'coupons.soon')}`);
+      else if (data === 'profile') await sendMessage(chat_id,
+        `${EMOJI.user} ${t(lang, 'profile.title')}\n\n${t(lang, 'profile.tid')}: <code>${from.id}</code>\n${t(lang, 'profile.username')}: @${from.username ?? '—'}`);
       else if (data === 'support') {
         const cfg = await getBotConfig();
-        await sendMessage(chat_id, `${EMOJI.support} Contact @${cfg.support_handle} for help.`);
+        await sendMessage(chat_id, `${EMOJI.support} ${t(lang, 'support.contact', { handle: cfg.support_handle })}`);
       }
-      else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} No announcements yet.`);
+      else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} ${t(lang, 'news.empty')}`);
       else if (data === 'lang') {
-        const cur = from ? await getUserLang(from.id) : 'en';
-        await sendMessage(chat_id,
-          cur === 'hi'
-            ? '🌐 <b>भाषा चुनें</b>\n\nअपनी पसंदीदा भाषा चुनें।'
-            : '🌐 <b>Choose your language</b>\n\nSelect your preferred language.',
-          { reply_markup: { inline_keyboard: langChooserKeyboard() } },
-        );
+        await sendMessage(chat_id, `${t(lang, 'lang.title')}\n\n${t(lang, 'lang.body')}`,
+          { reply_markup: { inline_keyboard: langChooserKeyboard() } });
       }
-      else if (data === 'lang:en' || data === 'lang:hi') {
-        const lang: Lang = data === 'lang:hi' ? 'hi' : 'en';
-        if (from) await setUserLang(from.id, lang);
-        await sendMessage(chat_id, langSavedText(lang));
-        await sendHome(chat_id, from?.first_name);
+      else if (data.startsWith('lang:')) {
+        const chosen = normalizeLang(data.slice('lang:'.length));
+        if (from) await setUserLang(from.id, chosen);
+        await sendMessage(chat_id, t(chosen, 'lang.saved', { name: LANG_META[chosen].native }));
+        await sendHome(chat_id, from?.first_name, chosen);
       }
-      else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2));
-      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4), 1);
+      else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2), lang);
+      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4), 1, lang);
       else if (data.startsWith('q:')) {
         const [, pid, n] = data.split(':');
         const message_id = (cq as any).message?.message_id;
-        if (message_id && pid) await updateProductQty(chat_id, message_id, pid, Math.max(1, parseInt(n) || 1));
+        if (message_id && pid) await updateProductQty(chat_id, message_id, pid, Math.max(1, parseInt(n) || 1), lang);
       }
       else if (data.startsWith('qc:')) {
         const pid = data.slice(3);
-        if (pid && from) await promptCustomQty(chat_id, from.id, pid);
+        if (pid && from) await promptCustomQty(chat_id, from.id, pid, lang);
       }
       else if (data.startsWith('b:')) {
         const [, pid, n] = data.split(':');
-        if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
+        if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1), lang);
       }
       else if (data.startsWith('pm:')) {
         const [, method, orderId] = data.split(':');
-        if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId);
+        if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId, lang);
       }
       else if (data.startsWith('pm_back:')) {
         const orderId = data.slice('pm_back:'.length);
-        // Rebuild chooser from order + first item
         const { data: o } = await admin().from('orders').select('id,total_cents,currency,order_items(product_name_snapshot,quantity,unit_price_cents)').eq('id', orderId).maybeSingle();
         if (o) {
           const it = (o as any).order_items?.[0];
@@ -1051,7 +1051,7 @@ async function handleUpdate(update: any) {
             unit: it?.unit_price_cents ?? (o as any).total_cents,
             total: (o as any).total_cents,
             currency: (o as any).currency,
-          });
+          }, lang);
         }
       }
     } finally {}
