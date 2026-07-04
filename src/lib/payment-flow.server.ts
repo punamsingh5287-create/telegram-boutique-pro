@@ -295,7 +295,19 @@ export async function verifyBinanceForOrder(orderId: string): Promise<{ ok: bool
   if (order.status !== "pending") return { ok: false, message: `Order already ${order.status}.` };
   const cfg = await loadPaymentConfig();
   const result = await verifyBinancePayByTradeNo(order as any, cfg);
-  if (!result.ok) return { ok: false, message: result.reason, provider: result.provider };
+  if (!result.ok) {
+    await supabaseAdmin.from("admin_audit_log").insert({
+      action: "payments.binance.verify_failed",
+      success: false,
+      context: { order_id: orderId, reason: result.reason, provider: result.provider },
+    });
+    const hint = /signature|SN|certificate|401/i.test(result.reason)
+      ? "\n\n(Admin: Merchant Pay API keys use kariye — pay.binance.com se, binance.com trading wali nahi.)"
+      : /not.*found|INITIAL|unknown/i.test(result.reason)
+        ? "\n\nAap 'Pay on Binance' button se hi pay kariye — direct Pay ID par bheja hua auto-verify nahi ho sakta."
+        : "";
+    return { ok: false, message: `Verify failed: ${result.reason}${hint}`, provider: result.provider };
+  }
   await fulfillOrder(order.id, "binancepay", (result as any).payload?.transactionId ?? (result as any).payload?.prepayId ?? "binancepay");
   return { ok: true, message: "Payment verified — check your delivery message.", provider: result.provider };
 }
