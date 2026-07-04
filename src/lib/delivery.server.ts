@@ -1,4 +1,4 @@
-import { sendMessage, formatPrice, EMOJI } from "@/lib/telegram.server";
+import { sendMessage, formatPrice, EMOJI, sendPhoto } from "@/lib/telegram.server";
 import { recordAudit } from "@/lib/audit.server";
 
 const MAX_DM_ATTEMPTS = 4;
@@ -7,10 +7,19 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function sendTelegramWithRetry(
   chatId: number | string,
   text: string,
+  photoUrl?: string | null,
 ): Promise<{ ok: true; attempts: number } | { ok: false; error: string; permanent: boolean; attempts: number }> {
   let lastError = "unknown error";
   for (let attempt = 1; attempt <= MAX_DM_ATTEMPTS; attempt++) {
     try {
+      if (photoUrl) {
+        try {
+          await sendPhoto(chatId, photoUrl, text);
+          return { ok: true, attempts: attempt };
+        } catch (photoErr) {
+          console.error("sendPhoto failed, falling back to text:", photoErr);
+        }
+      }
       await sendMessage(chatId, text, { disable_web_page_preview: true });
       return { ok: true, attempts: attempt };
     } catch (e) {
@@ -45,7 +54,7 @@ export async function sendOrderDeliveryDM(
 
   const { data: order, error: orderErr } = await supabaseAdmin
     .from("orders")
-    .select("id,chat_id,currency,total_cents,delivery_attempts,deliveries(payload_snapshot,order_items(product_name_snapshot))")
+    .select("id,chat_id,currency,total_cents,delivery_attempts,deliveries(payload_snapshot,order_items(product_name_snapshot,products(image_url)))")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -61,8 +70,11 @@ export async function sendOrderDeliveryDM(
   }
 
   const shortId = order.id.slice(0, 8);
+  let firstImage: string | null = null;
   const lines = deliveries.map((d: any) => {
     const name = d.order_items?.product_name_snapshot ?? "Item";
+    const img = d.order_items?.products?.image_url as string | null | undefined;
+    if (img && !firstImage) firstImage = img;
     return `${EMOJI.key} <b>${name}</b>\n<code>${d.payload_snapshot}</code>`;
   });
   const text =
@@ -71,7 +83,7 @@ export async function sendOrderDeliveryDM(
     lines.join("\n\n") +
     `\n\nThanks for your purchase.`;
 
-  const result = await sendTelegramWithRetry(order.chat_id, text);
+  const result = await sendTelegramWithRetry(order.chat_id, text, firstImage);
   const priorAttempts = order.delivery_attempts ?? 0;
 
   if (result.ok) {
