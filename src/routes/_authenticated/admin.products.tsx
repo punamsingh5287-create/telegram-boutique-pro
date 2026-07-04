@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { listAdminProducts, saveProduct, deleteProduct, type AdminProduct } from "@/lib/admin-products.functions";
+import { listAdminProducts, saveProduct, deleteProduct, getProductStock, addDigitalAssets, type AdminProduct } from "@/lib/admin-products.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Pencil, Plus, Trash2, Sparkles } from "lucide-react";
@@ -23,7 +23,7 @@ function money(c: number, cur: string) {
 
 const empty = {
   slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
-  priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "digital",
+  priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "license_key",
   active: true, featured: false,
 };
 
@@ -227,11 +227,14 @@ function ProductSheet({
           </Field>
           <Field label={<><TgEmoji>🚚</TgEmoji> Delivery type</>}>
             <select value={form.deliveryType} onChange={(e) => setForm({ ...form, deliveryType: e.target.value })} className={inputCls}>
-              <option value="digital">💾 Digital file</option>
-              <option value="link">🔗 Access link</option>
-              <option value="manual">✋ Manual fulfillment</option>
+              <option value="license_key">🔑 License key</option>
+              <option value="file">💾 Digital file / link</option>
+              <option value="text">📝 Text payload</option>
             </select>
           </Field>
+          {(initial as any).id && (
+            <LicenseKeysSection productId={(initial as any).id} />
+          )}
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> <TgEmoji>✅</TgEmoji> Active
