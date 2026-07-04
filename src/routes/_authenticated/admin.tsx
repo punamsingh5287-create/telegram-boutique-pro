@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, Link, useRouterState, isRedirect } from "@tanstack/react-router";
 import { checkIsAdmin } from "@/lib/admin-access.functions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
         throw redirect({ to: "/" });
       }
     } catch (err) {
-      if (err && typeof err === "object" && "isRedirect" in err) throw err;
+      if (isRedirect(err)) throw err;
       throw redirect({ to: "/auth" });
     }
   },
