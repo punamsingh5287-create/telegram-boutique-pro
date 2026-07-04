@@ -116,12 +116,7 @@ function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset:
 
 async function sendHome(chat_id: number, firstName?: string) {
   const cfg = await getBotConfig();
-  await sendMessage(chat_id, [
-    welcomeText(cfg, firstName),
-    '',
-    '<b>Menu</b>',
-    homeMenuPreviewText(cfg),
-  ].join('\n'), {
+  await sendMessage(chat_id, welcomeText(cfg, firstName), {
     reply_markup: { inline_keyboard: homeKeyboard(cfg) },
   });
 }
