@@ -565,6 +565,68 @@ async function sendProduct(chat_id: number, productId: string) {
   await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
 }
 
+// ────────────────────────────────────────────────────────────────
+// Per-user "waiting for custom quantity" state
+// ────────────────────────────────────────────────────────────────
+function qtyKey(tg: number) { return `pending_qty:${tg}`; }
+
+async function setPendingQty(tg: number, productId: string) {
+  await admin().from('app_settings').upsert(
+    { key: qtyKey(tg), value: { productId, at: Date.now() } as any, updated_at: new Date().toISOString() },
+    { onConflict: 'key' },
+  );
+}
+async function getPendingQty(tg: number): Promise<{ productId: string } | null> {
+  const { data } = await admin().from('app_settings').select('value').eq('key', qtyKey(tg)).maybeSingle();
+  const v = data?.value as any;
+  if (!v?.productId) return null;
+  // Expire after 5 minutes
+  if (v.at && Date.now() - v.at > 5 * 60 * 1000) {
+    await clearPendingQty(tg);
+    return null;
+  }
+  return { productId: v.productId };
+}
+async function clearPendingQty(tg: number) {
+  await admin().from('app_settings').delete().eq('key', qtyKey(tg));
+}
+
+async function promptCustomQty(chat_id: number, tg: number, productId: string) {
+  await setPendingQty(tg, productId);
+  await sendMessage(chat_id, [
+    '🔢 <b>Custom Quantity</b>',
+    '',
+    'Send the number of items you want to buy as your next message.',
+    '',
+    '<i>Example: 47</i>',
+    '',
+    'Send /cancel to abort.',
+  ].join('\n'));
+}
+
+/** Returns true if the message was consumed as a pending-qty entry. */
+async function handlePendingQty(chat_id: number, tg: number, text: string): Promise<boolean> {
+  const pending = await getPendingQty(tg);
+  if (!pending) return false;
+  const trimmed = (text ?? '').trim();
+  if (trimmed === '/cancel') {
+    await clearPendingQty(tg);
+    await sendMessage(chat_id, '❌ Cancelled.');
+    return true;
+  }
+  const qty = parseInt(trimmed, 10);
+  if (!Number.isFinite(qty) || qty < 1) {
+    await sendMessage(chat_id, '❌ Please send a positive whole number (or /cancel).');
+    return true;
+  }
+  await clearPendingQty(tg);
+  const card = await renderProductCard(pending.productId, Math.min(qty, 9999));
+  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return true; }
+  await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
+  return true;
+}
+
+
 async function updateProductQty(chat_id: number, message_id: number, productId: string, qty: number) {
   const card = await renderProductCard(productId, qty);
   if (!card) return;
