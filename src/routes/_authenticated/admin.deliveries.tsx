@@ -199,7 +199,7 @@ function AdminDeliveriesPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => resend.mutate(o.id)}
+                    onClick={() => setConfirmSingle(o)}
                     disabled={busyId === o.id || !o.chatId || bulkResend.isPending}
                     className="shrink-0 rounded-lg bg-gradient-royal px-4 py-2 text-sm font-medium text-primary-foreground shadow-royal disabled:opacity-60"
                   >
@@ -231,6 +231,41 @@ function AdminDeliveriesPage() {
               disabled={bulkResend.isPending || selected.size === 0}
             >
               {bulkResend.isPending ? "Resending…" : `Resend ${selected.size}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmSingle !== null}
+        onOpenChange={(o) => {
+          if (!o && !resend.isPending) setConfirmSingle(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Resend delivery for order #{confirmSingle?.shortId}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The customer will receive the Telegram DM again with their license keys.
+              Keys are not re-claimed, but they may get a duplicate message.
+              {confirmSingle && confirmSingle.deliveryAttempts > 0 && (
+                <> Previous attempts: {confirmSingle.deliveryAttempts}.</>
+              )}
+              {" "}This action is logged in the admin audit log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resend.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmSingle) resend.mutate(confirmSingle.id);
+              }}
+              disabled={resend.isPending || !confirmSingle}
+            >
+              {resend.isPending ? "Resending…" : "Resend delivery"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
