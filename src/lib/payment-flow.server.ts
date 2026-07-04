@@ -439,6 +439,7 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
   const header = `${EMOJI.pay} <b>${methodLabel(method)}</b>\nOrder <code>${shortId}</code> · ${formatPrice(order.total_cents, order.currency)}`;
   let body = "";
   let photo: string | null = null;
+  let extraButtons: { text: string; url?: string; callback_data?: string }[][] | null = null;
   if (method === "upi") {
     body =
       `\n\n💠 <b>Send exactly ${exp.display}</b>\n` +
@@ -451,6 +452,34 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
       `\n\n💠 <b>Send exactly ${exp.display}</b>\n` +
       `BTC address: <code>${cfg.crypto_btc.address}</code>\n` +
       `\nTx confirm hone ke baad transaction hash (txid) yahi bhej dijiye.`;
+  } else if (method === "binancepay") {
+    const assets = cfg.binance.accepted_assets || "USDT";
+    if (cfg.binance.api_key && cfg.binance.api_secret) {
+      const created = await createBinancePayOrder(order, cfg);
+      if (created.ok) {
+        body =
+          `\n\n💠 <b>Pay ${exp.display}</b> via Binance Pay\n` +
+          `Tap <b>Pay on Binance</b>, complete the payment, then tap <b>I've paid — verify</b>.\n` +
+          `Auto-verify + instant delivery.`;
+        extraButtons = [
+          [{ text: '💳 Pay on Binance', url: created.checkoutUrl }],
+          [{ text: `${EMOJI.check} I've paid — verify`, callback_data: `bnv:${order.id}` }],
+        ];
+      } else {
+        body =
+          `\n\n💠 <b>Send exactly ${exp.display}</b> to Pay ID:\n` +
+          `Binance Pay ID: <code>${cfg.binance.pay_id || '(not set)'}</code>\n` +
+          `Assets: ${assets}\n\n` +
+          `<i>Auto-order could not be created (${created.reason}). Send the Binance Order ID here after paying — admin will verify manually.</i>`;
+      }
+    } else {
+      body =
+        `\n\n💠 <b>Send exactly ${exp.display}</b> to Pay ID:\n` +
+        `Binance Pay ID: <code>${cfg.binance.pay_id || '(not set)'}</code>\n` +
+        (cfg.binance.account_email ? `Account: <code>${cfg.binance.account_email}</code>\n` : '') +
+        `Assets: ${assets}\n\n` +
+        `Payment ke baad Binance <b>Order ID</b> yahi chat me bhej dijiye — admin verify karega.`;
+    }
   } else {
     const c = method === "trc20" ? cfg.crypto_trc20 : method === "bep20" ? cfg.crypto_bep20 : cfg.crypto_erc20;
     body =
@@ -459,7 +488,7 @@ export async function buildPaymentInstruction(order: { id: string; total_cents: 
       `\nTx confirm ke baad Transaction Hash yahi chat me bhej dijiye — auto-verify + delivery.`;
   }
   const text = header + body + `\n\n<i>${cfg.instructions}</i>`;
-  return { text, photo };
+  return { text, photo, extraButtons };
 }
 
 export async function loadCfg(): Promise<PaymentConfig> {
