@@ -442,7 +442,8 @@ async function flashShopPopup(chat_id: number) {
     const message_id = (sent as any)?.message_id;
     // Keep just long enough for Telegram to trigger the premium emoji effect,
     // then vanish the message quickly so the chat stays clean.
-    await new Promise((r) => setTimeout(r, 600));
+    // Let the premium emoji effect play in full, then vanish the message.
+    await new Promise((r) => setTimeout(r, 2500));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
