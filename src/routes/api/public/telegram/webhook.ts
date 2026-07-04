@@ -10,6 +10,7 @@ import {
   EMOJI,
   type InlineButton,
   deleteMessage,
+  sendRawMessage,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -133,14 +134,29 @@ const START_SPLASH_EMOJI_ID = '5384145649073663083';
 // Fire-and-forget splash: sends the premium emoji, schedules its deletion
 // after a short delay in the background, and returns immediately so the
 // welcome message can be sent right after with no perceptible lag.
-function fireStartSplash(chat_id: number): Promise<void> {
-  return sendMessage(chat_id, `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`)
-    .then((sent: any) => {
-      if (sent?.message_id) {
-        setTimeout(() => { deleteMessage(chat_id, sent.message_id).catch(() => {}); }, 900);
-      }
-    })
-    .catch(() => {});
+async function flashStartSplash(chat_id: number): Promise<void> {
+  try {
+    const stateKey = `start_splash:${chat_id}`;
+    const { data: previous } = await admin()
+      .from('app_settings')
+      .select('value')
+      .eq('key', stateKey)
+      .maybeSingle();
+    const previousId = Number((previous?.value as any)?.message_id ?? 0);
+    if (previousId) deleteMessage(chat_id, previousId).catch(() => {});
+
+    const sent: any = await sendRawMessage(chat_id, `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`);
+    if (!sent?.message_id) return;
+    await admin().from('app_settings').upsert(
+      { key: stateKey, value: { message_id: sent.message_id } as any, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    );
+    await new Promise((r) => setTimeout(r, 250));
+    await deleteMessage(chat_id, sent.message_id).catch(() => null);
+    await admin().from('app_settings').delete().eq('key', stateKey).catch(() => null as any);
+  } catch {
+    // Decorative only — never block /start.
+  }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -592,7 +608,7 @@ async function handleUpdate(update: any) {
       // Kick off splash and welcome in parallel so the user sees the home
       // menu instantly instead of waiting on the decorative emoji.
       await Promise.all([
-        fireStartSplash(chat_id),
+        flashStartSplash(chat_id),
         sendHome(chat_id, from?.first_name),
       ]);
     } else if (text.startsWith('/shop')) {
