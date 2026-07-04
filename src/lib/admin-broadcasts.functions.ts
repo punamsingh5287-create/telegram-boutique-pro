@@ -124,7 +124,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
         failed_count: failed,
         sent_at: new Date().toISOString(),
       })
-      .eq("id", bc?.id);
+      .eq("id", bc?.id ?? "");
 
     await supabaseAdmin.from("admin_audit_log").insert({
       action: "broadcast.sent",
