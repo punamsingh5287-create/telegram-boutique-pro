@@ -133,3 +133,13 @@ export const savePaymentConfig = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export const testBinancePay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; message: string }> => {
+    if (!(await ensureAdmin(context))) return { ok: false, message: "Forbidden" };
+    const cfg = await loadPaymentConfig();
+    const { testBinancePayKeys } = await import("@/lib/payment-flow.server");
+    const r = await testBinancePayKeys(cfg);
+    return { ok: r.ok, message: r.message };
+  });
