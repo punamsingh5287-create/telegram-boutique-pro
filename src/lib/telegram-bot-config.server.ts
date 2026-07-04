@@ -77,16 +77,27 @@ function mergeButtons(storedButtons?: Partial<Record<string, Partial<BotButton>>
   return merged;
 }
 
+// Short in-memory cache so a single webhook request that sends 1–3 messages
+// doesn't fetch bot_config from Postgres 4+ times (each sendMessage previously
+// hit it twice — once for text, once for keyboard). This alone removes the
+// dominant source of bot latency on hot workers.
+const CFG_TTL_MS = 30_000;
+let _cfgCache: { at: number; value: BotConfig } | null = null;
+
 export async function getBotConfig(): Promise<BotConfig> {
+  const now = Date.now();
+  if (_cfgCache && now - _cfgCache.at < CFG_TTL_MS) return _cfgCache.value;
   const { data } = await admin()
     .from('app_settings').select('value').eq('key', 'bot_config').maybeSingle();
   const stored = (data?.value as Partial<BotConfig> | null) ?? {};
-  return {
+  const value: BotConfig = {
     ...DEFAULTS,
     ...stored,
     buttons: mergeButtons(stored.buttons),
     emoji_map: { ...DEFAULTS.emoji_map, ...(stored.emoji_map ?? {}) },
   };
+  _cfgCache = { at: now, value };
+  return value;
 }
 
 export async function saveBotConfig(cfg: BotConfig): Promise<void> {
@@ -94,6 +105,8 @@ export async function saveBotConfig(cfg: BotConfig): Promise<void> {
     { key: 'bot_config', value: cfg as any, updated_at: new Date().toISOString() },
     { onConflict: 'key' },
   );
+  // Invalidate cache so admin edits go live immediately.
+  _cfgCache = { at: Date.now(), value: cfg };
 }
 
 /** Render a button's emoji with premium/custom_emoji when available. */
