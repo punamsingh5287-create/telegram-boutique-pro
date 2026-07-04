@@ -144,6 +144,18 @@ async function flashStartSplash(chat_id: number): Promise<void> {
   void chat_id;
 }
 
+// Best-effort cleanup of recent bot messages so /start opens a fresh chat.
+// Telegram silently rejects deletes for messages the bot didn't send or that
+// are older than 48h, so this is safe to fire across a range of ids.
+async function clearRecentChat(chat_id: number, currentMessageId: number, depth = 30): Promise<void> {
+  const ids: number[] = [];
+  for (let i = 0; i <= depth; i++) {
+    const id = currentMessageId - i;
+    if (id > 0) ids.push(id);
+  }
+  await Promise.all(ids.map((id) => deleteMessage(chat_id, id).catch(() => {})));
+}
+
 async function ensureMenuInstalled(chat_id?: number): Promise<void> {
   // Keep the webhook response fast. Command/menu registration is not required
   // to answer messages and making these Telegram API calls on cold starts slows
@@ -809,6 +821,9 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      // Clear previous bot messages (catalog, product cards, etc.) so /start
+      // always opens a fresh chat instead of piling on top of old content.
+      await clearRecentChat(chat_id, msg.message_id);
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
       await flashStartSplash(chat_id);
