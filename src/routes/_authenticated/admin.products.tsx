@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { listAdminProducts, saveProduct, deleteProduct, type AdminProduct } from "@/lib/admin-products.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Sparkles } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -25,6 +25,13 @@ const empty = {
   priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "digital",
   active: true, featured: false,
 };
+
+const btnPrimary =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-purple-500/30 transition hover:shadow-lg hover:shadow-purple-500/40 hover:brightness-110 disabled:opacity-50";
+const btnGhost =
+  "inline-flex items-center justify-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2.5 py-1.5 text-xs font-medium transition hover:border-primary/40 hover:bg-primary/5";
+const btnDanger =
+  "inline-flex items-center justify-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive/15";
 
 function ProductsPage() {
   const qc = useQueryClient();
@@ -72,14 +79,11 @@ function ProductsPage() {
     <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold">Products</h1>
-          <p className="text-sm text-muted-foreground">{data?.length ?? 0} products</p>
+          <h1 className="truncate text-2xl font-bold">💎 Products</h1>
+          <p className="text-sm text-muted-foreground">✨ {data?.length ?? 0} products in your catalog</p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> New product
+        <button onClick={() => setCreating(true)} className={btnPrimary}>
+          <Plus className="h-4 w-4" /> ➕ New product
         </button>
       </header>
 
@@ -107,17 +111,11 @@ function ProductsPage() {
                 <p className="mb-3 line-clamp-2 text-xs text-muted-foreground">{p.shortDescription}</p>
               )}
               <div className="flex gap-2">
-                <button
-                  onClick={() => setEditing(p)}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted"
-                >
-                  <Pencil className="h-3 w-3" /> Edit
+                <button onClick={() => setEditing(p)} className={btnGhost + " flex-1"}>
+                  <Pencil className="h-3 w-3" /> ✏️ Edit
                 </button>
-                <button
-                  onClick={() => setToDelete(p)}
-                  className="inline-flex items-center justify-center gap-1 rounded border border-destructive/30 px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-3 w-3" />
+                <button onClick={() => setToDelete(p)} className={btnDanger}>
+                  <Trash2 className="h-3 w-3" /> 🗑️
                 </button>
               </div>
             </CardContent>
@@ -136,18 +134,18 @@ function ProductsPage() {
       <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete product?</AlertDialogTitle>
+            <AlertDialogTitle>🗑️ Delete product?</AlertDialogTitle>
             <AlertDialogDescription>
               "{toDelete?.name}" will be permanently removed. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>✖ Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => toDelete && del.mutate(toDelete.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              🗑️ Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -166,69 +164,88 @@ function ProductSheet({
   onSave: (p: any) => void;
 }) {
   const [form, setForm] = useState<any>(initial);
-  // reset when initial changes (via key trick)
+  const priceMajor = ((form.priceCents ?? 0) / 100).toString();
   return (
     <Sheet open={open} onOpenChange={onOpenChange} key={(initial as any).id ?? "new"}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>{(initial as any).id ? "Edit product" : "New product"}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-fuchsia-500" />
+            {(initial as any).id ? "✏️ Edit product" : "💎 Add new product"}
+          </SheetTitle>
+          <p className="text-xs text-muted-foreground">Fill product details below and hit save — it goes live instantly. ✨</p>
         </SheetHeader>
         <form
-          className="mt-4 space-y-3"
+          className="mt-5 space-y-4"
           onSubmit={(e) => { e.preventDefault(); onSave(form); }}
         >
-          <Field label="Name">
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
+          <Field label="🏷️ Product name" hint="Displayed to customers">
+            <input required placeholder="Premium Course Bundle" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Slug">
-            <input required value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
+          <Field label="🔗 Slug" hint="URL identifier, lowercase, no spaces">
+            <input required placeholder="premium-course" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Price (cents)">
-              <input type="number" required min={0} value={form.priceCents} onChange={(e) => setForm({ ...form, priceCents: +e.target.value })} className={inputCls} />
+            <Field label="💵 Price" hint="e.g. 9.99">
+              <input type="number" step="0.01" required min={0} value={priceMajor}
+                onChange={(e) => setForm({ ...form, priceCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+                className={inputCls} placeholder="0.00" />
             </Field>
-            <Field label="Currency">
-              <input value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className={inputCls} />
+            <Field label="💱 Currency">
+              <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className={inputCls}>
+                <option value="USD">🇺🇸 USD</option>
+                <option value="INR">🇮🇳 INR</option>
+                <option value="EUR">🇪🇺 EUR</option>
+                <option value="GBP">🇬🇧 GBP</option>
+              </select>
             </Field>
           </div>
-          <Field label="Short description">
-            <input value={form.shortDescription ?? ""} onChange={(e) => setForm({ ...form, shortDescription: e.target.value })} className={inputCls} />
+          <Field label="✍️ Short description" hint="One-liner shown in product cards">
+            <input placeholder="A short catchy tagline" value={form.shortDescription ?? ""} onChange={(e) => setForm({ ...form, shortDescription: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Description">
-            <textarea rows={4} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
+          <Field label="📄 Full description" hint="HTML supported in Telegram bot">
+            <textarea rows={5} placeholder="What does this product include?" value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="Image URL">
-            <input value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputCls} />
+          <Field label="🖼️ Cover image URL" hint="Public https:// image link">
+            <input placeholder="https://…" value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputCls} />
+            {form.imageUrl && (
+              <img src={form.imageUrl} alt="preview" className="mt-2 h-24 w-24 rounded-md border object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}} />
+            )}
           </Field>
-          <Field label="Delivery type">
-            <input value={form.deliveryType} onChange={(e) => setForm({ ...form, deliveryType: e.target.value })} className={inputCls} />
+          <Field label="🚚 Delivery type">
+            <select value={form.deliveryType} onChange={(e) => setForm({ ...form, deliveryType: e.target.value })} className={inputCls}>
+              <option value="digital">💾 Digital file</option>
+              <option value="link">🔗 Access link</option>
+              <option value="manual">✋ Manual fulfillment</option>
+            </select>
           </Field>
-          <div className="flex gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Active
+          <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> ✅ Active
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> Featured
+            <label className="flex cursor-pointer items-center gap-2">
+              <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> ⭐ Featured
             </label>
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
+          <div className="sticky bottom-0 -mx-6 mt-6 border-t bg-background/95 px-6 py-3 backdrop-blur">
+            <button type="submit" disabled={saving} className={btnPrimary + " w-full py-2.5 text-base"}>
+              {saving ? "⏳ Saving…" : "💾 Save product"}
+            </button>
+          </div>
         </form>
       </SheetContent>
     </Sheet>
   );
 }
 
-const inputCls = "w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+const inputCls = "w-full rounded-md border bg-background px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 focus:border-fuchsia-500/60";
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+    <label className="block space-y-1.5">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-semibold">{label}</span>
+        {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+      </span>
       {children}
     </label>
   );
