@@ -20,6 +20,9 @@ export type BotButton = {
   /** Optional Telegram Premium custom_emoji id. Any bot can send them;
    *  only Premium users see the animated variant. */
   premium_id?: string | null;
+  /** Bot API 9.4+: colored button style — "primary" (blue),
+   *  "success" (green), or "danger" (red). Undefined = default. */
+  style?: 'primary' | 'success' | 'danger' | null;
 };
 
 export type BotConfig = {
@@ -51,14 +54,14 @@ const DEFAULTS: BotConfig = {
   support_handle: 'MateoSupport',
   admin_ids: [],
   buttons: {
-    shop:     { label: 'Shop',          emoji: '🛒' },
-    trending: { label: 'Trending',      emoji: '🔥' },
-    orders:   { label: 'My Orders',     emoji: '📦' },
-    products: { label: 'My Products',   emoji: '🔑' },
-    coupons:  { label: 'Coupons',       emoji: '🎟' },
-    profile:  { label: 'Profile',       emoji: '👤' },
-    support:  { label: 'Support',       emoji: '💬' },
-    news:     { label: 'Announcements', emoji: '📢' },
+    shop:     { label: 'Shop',          emoji: '🛒', style: 'primary' },
+    trending: { label: 'Trending',      emoji: '🔥', style: 'danger'  },
+    orders:   { label: 'My Orders',     emoji: '📦', style: 'primary' },
+    products: { label: 'My Products',   emoji: '🔑', style: 'success' },
+    coupons:  { label: 'Coupons',       emoji: '🎟', style: 'success' },
+    profile:  { label: 'Profile',       emoji: '👤', style: 'primary' },
+    support:  { label: 'Support',       emoji: '💬', style: 'success' },
+    news:     { label: 'Announcements', emoji: '📢', style: 'danger'  },
   },
   emoji_map: {},
 };
