@@ -561,7 +561,7 @@ async function productStock(productId: string): Promise<number> {
   return count ?? 0;
 }
 
-async function renderProductCard(productId: string, qty: number) {
+async function renderProductCard(productId: string, qty: number, lang: Lang = 'en') {
   const { data: p } = await admin()
     .from('products')
     .select('id, name, emoji, custom_emoji_id, description, short_description, price_cents, currency, image_url, bulk_tiers')
@@ -587,28 +587,28 @@ async function renderProductCard(productId: string, qty: number) {
   if (anyP.short_description) lines.push(`<i>${anyP.short_description}</i>`, '');
   if (anyP.description) lines.push(anyP.description, '');
   lines.push(
-    `💰 <b>Price:</b> ${formatPrice(unit, cur)} each`,
-    `📦 <b>In stock:</b> ${stock}`,
+    t(lang, 'card.price', { price: formatPrice(unit, cur) }),
+    t(lang, 'card.stock', { n: stock }),
     ``,
-    `🧮 <b>Selected Qty:</b> ${cappedQty}`,
-    `✏️ <b>Total:</b> ${formatPrice(total, cur)}${tier ? `  <i>(bulk tier)</i>` : ''}`,
+    t(lang, 'card.selected', { n: cappedQty }),
+    `${t(lang, 'card.total', { price: formatPrice(total, cur) })}${tier ? `  <i>${t(lang, 'card.bulk_tier_tag')}</i>` : ''}`,
   );
 
   if (tiers.length > 0) {
-    lines.push('', `🎁 <b>Bulk Discounts — Buy more, save more</b>`);
+    lines.push('', t(lang, 'card.bulk_title'));
     const basePrice = anyP.price_cents as number;
-    for (const t of tiers) {
-      const range = t.max === null
-        ? `Buy ${t.min}+ codes`
-        : `Buy ${t.min}-${t.max} codes`;
-      const active = cappedQty >= t.min && (t.max === null || cappedQty <= t.max);
-      const savedPct = basePrice > 0 && t.unitCents < basePrice
-        ? Math.round(((basePrice - t.unitCents) / basePrice) * 100)
+    for (const tr of tiers) {
+      const range = tr.max === null
+        ? t(lang, 'card.bulk_range_plus', { min: tr.min })
+        : t(lang, 'card.bulk_range', { min: tr.min, max: tr.max });
+      const active = cappedQty >= tr.min && (tr.max === null || cappedQty <= tr.max);
+      const savedPct = basePrice > 0 && tr.unitCents < basePrice
+        ? Math.round(((basePrice - tr.unitCents) / basePrice) * 100)
         : 0;
       const savedLabel = savedPct > 0 ? `  <b>(-${savedPct}%)</b>` : '';
-      lines.push(`${active ? '✅' : '▫️'} ${range} → <b>${formatPrice(t.unitCents, cur)}</b> each${savedLabel}`);
+      lines.push(`${active ? '✅' : '▫️'} ${range} → <b>${formatPrice(tr.unitCents, cur)}</b>${savedLabel}`);
     }
-    lines.push('', `<i>💡 Discount auto-applies at checkout based on quantity.</i>`);
+    lines.push('', t(lang, 'card.bulk_tip'));
   }
 
   const dec = Math.max(1, cappedQty - 1);
@@ -620,17 +620,17 @@ async function renderProductCard(productId: string, qty: number) {
         { text: String(cappedQty), callback_data: `q:${productId}:${cappedQty}` },
         { text: '➕', callback_data: `q:${productId}:${inc}` },
       ],
-      [{ text: '🔢 Custom Quantity', callback_data: `qc:${productId}` }],
-      [{ text: `${EMOJI.pay} Buy Now · ${formatPrice(total, cur)}`, callback_data: `b:${productId}:${cappedQty}` }],
-      [{ text: `${EMOJI.back} Back`, callback_data: 'shop' }],
+      [{ text: t(lang, 'btn.custom_qty'), callback_data: `qc:${productId}` }],
+      [{ text: `${t(lang, 'btn.buy_now')} · ${formatPrice(total, cur)}`, callback_data: `b:${productId}:${cappedQty}` }],
+      [{ text: t(lang, 'btn.back'), callback_data: 'shop' }],
     ],
   };
   return { text: lines.join('\n'), reply_markup, outOfStock: stock <= 0 };
 }
 
-async function sendProduct(chat_id: number, productId: string) {
-  const card = await renderProductCard(productId, 1);
-  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return; }
+async function sendProduct(chat_id: number, productId: string, lang: Lang = 'en') {
+  const card = await renderProductCard(productId, 1, lang);
+  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'product.not_available')}`); return; }
   const { data: p } = await admin()
     .from('products')
     .select('image_url')
