@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
+import { sendMessage } from '@/lib/telegram.server';
 
 let _admin: ReturnType<typeof createClient<Database>> | null = null;
 function admin() {
@@ -67,9 +68,9 @@ export async function runFakeBroadcast(): Promise<{ ok: boolean; sent: number; f
   const cfg = await getFakeBroadcastConfig();
   if (!cfg.enabled) return { ok: true, sent: 0, failed: 0, skipped: 'disabled' };
 
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const tgKey = process.env.TELEGRAM_API_KEY;
-  if (!lovableKey || !tgKey) return { ok: false, sent: 0, failed: 0, skipped: 'telegram not configured' };
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    return { ok: false, sent: 0, failed: 0, skipped: 'telegram not configured' };
+  }
 
   const { data: products } = await admin()
     .from('products')
@@ -110,21 +111,8 @@ export async function runFakeBroadcast(): Promise<{ ok: boolean; sent: number; f
   let failed = 0;
   for (const chatId of chatIds) {
     try {
-      const res = await fetch('https://connector-gateway.lovable.dev/telegram/sendMessage', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${lovableKey}`,
-          'X-Connection-Api-Key': tgKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          parse_mode: 'HTML',
-          disable_notification: true,
-        }),
-      });
-      if (res.ok) sent++; else failed++;
+      await sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true });
+      sent++;
     } catch {
       failed++;
     }
