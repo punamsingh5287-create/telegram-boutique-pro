@@ -129,7 +129,7 @@ async function sendHome(chat_id: number, firstName?: string) {
   });
 }
 
-const START_SPLASH_EMOJI_ID = '5384145649073663083';
+const START_SPLASH_EMOJI_ID = '6089195304152731129';
 
 // Fire-and-forget splash: sends the premium emoji, schedules its deletion
 // after a short delay in the background, and returns immediately so the
@@ -151,7 +151,7 @@ async function flashStartSplash(chat_id: number): Promise<void> {
       { key: stateKey, value: { message_id: sent.message_id } as any, updated_at: new Date().toISOString() },
       { onConflict: 'key' },
     );
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 3000));
     await deleteMessage(chat_id, sent.message_id).catch(() => null);
     await admin().from('app_settings').delete().eq('key', stateKey);
   } catch {
@@ -702,12 +702,9 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
-      // Kick off splash and welcome in parallel so the user sees the home
-      // menu instantly instead of waiting on the decorative emoji.
-      await Promise.all([
-        flashStartSplash(chat_id),
-        sendHome(chat_id, from?.first_name),
-      ]);
+      // Send welcome menu first, then splash appears BELOW the menu for 3s.
+      await sendHome(chat_id, from?.first_name);
+      flashStartSplash(chat_id).catch(() => {});
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
     } else if (text.startsWith('/orders')) {
