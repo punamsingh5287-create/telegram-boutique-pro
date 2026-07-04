@@ -17,7 +17,31 @@ export type AdminProduct = {
   featured: boolean;
   createdAt: string;
   updatedAt: string;
+  bulkTiers: BulkTier[];
 };
+
+export type BulkTier = {
+  min: number;
+  max: number | null;
+  unitCents: number;
+};
+
+function sanitizeTiers(input: unknown): BulkTier[] {
+  if (!Array.isArray(input)) return [];
+  const out: BulkTier[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as any;
+    const min = Math.max(1, Math.floor(Number(r.min ?? r.minQty ?? 0)));
+    const maxRaw = r.max ?? r.maxQty ?? null;
+    const max = maxRaw === null || maxRaw === "" || maxRaw === undefined
+      ? null
+      : Math.max(min, Math.floor(Number(maxRaw)));
+    const unitCents = Math.max(0, Math.floor(Number(r.unitCents ?? r.unit_cents ?? 0)));
+    if (min > 0 && unitCents >= 0) out.push({ min, max, unitCents });
+  }
+  return out.sort((a, b) => a.min - b.min).slice(0, 20);
+}
 
 async function ensureAdmin(ctx: any) {
   const { data } = await (ctx.supabase as any).rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
@@ -41,6 +65,7 @@ function toProduct(r: any): AdminProduct {
     featured: r.featured,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    bulkTiers: sanitizeTiers(r.bulk_tiers),
   };
 }
 
@@ -72,6 +97,7 @@ export type SaveProductInput = {
   deliveryType: string;
   active: boolean;
   featured: boolean;
+  bulkTiers?: BulkTier[];
 };
 
 export const saveProduct = createServerFn({ method: "POST" })
@@ -93,6 +119,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       deliveryType: (data.deliveryType || "license_key").slice(0, 50),
       active: !!data.active,
       featured: !!data.featured,
+      bulkTiers: sanitizeTiers(data.bulkTiers),
     };
   })
   .handler(async ({ data, context }): Promise<{ ok: true; product: AdminProduct } | { ok: false; error: string }> => {
@@ -111,6 +138,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       delivery_type: data.deliveryType,
       active: data.active,
       featured: data.featured,
+      bulk_tiers: data.bulkTiers ?? [],
     };
     const q = data.id
       ? supabaseAdmin.from("products").update(payload).eq("id", data.id).select("*").maybeSingle()
