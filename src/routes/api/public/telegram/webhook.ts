@@ -717,7 +717,7 @@ async function updateProductQty(chat_id: number, message_id: number, productId: 
   }
 }
 
-async function startCheckout(chat_id: number, telegram_id: number, productId: string, qty = 1) {
+async function startCheckout(chat_id: number, telegram_id: number, productId: string, qty = 1, lang: Lang = 'en') {
   const { data: product } = await admin()
     .from('products')
     .select('id, name, price_cents, currency, bulk_tiers')
@@ -725,7 +725,7 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     .eq('active', true)
     .maybeSingle();
   if (!product) {
-    await sendMessage(chat_id, `${EMOJI.cross} Product not available.`);
+    await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'product.not_available')}`);
     return;
   }
 
@@ -733,7 +733,7 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
   const stock = await productStock(productId);
   const q = Math.max(1, Math.min(qty, Math.max(1, stock || 999)));
   if (stock > 0 && q > stock) {
-    await sendMessage(chat_id, `${EMOJI.cross} Only ${stock} in stock.`);
+    await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'product.only_stock', { n: stock })}`);
     return;
   }
   const tiers = productBulkTiers(p.bulk_tiers);
@@ -750,7 +750,7 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     .select('id')
     .single();
   if (error || !order) {
-    await sendMessage(chat_id, `${EMOJI.cross} Could not create order. Please try again.`);
+    await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'checkout.create_failed')}`);
     return;
   }
   await admin().from('order_items').insert({
@@ -767,38 +767,35 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     unit,
     total,
     currency: p.currency,
-  });
+  }, lang);
 }
 
 async function sendPaymentChooser(
   chat_id: number,
   orderId: string,
   order: { name: string; qty: number; unit: number; total: number; currency: string },
+  lang: Lang = 'en',
 ) {
   const cfg = await loadCfg();
   const methods = enabledMethods(cfg);
   const shortId = orderId.slice(0, 8);
 
   if (!methods.length) {
-    await sendMessage(chat_id, [
-      `${EMOJI.cross} <b>Payment options not configured yet</b>`,
-      ``,
-      `Admin ne abhi tak koi payment method enable nahi kiya. Kripya support se contact karein.`,
-    ].join('\n'), {
-      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'shop' }]] },
+    await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'checkout.methods_off')}`, {
+      reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.back'), callback_data: 'shop' }]] },
     });
     return;
   }
 
   const lines: string[] = [
-    `${EMOJI.lock} <b>Secure Checkout</b>`,
+    `${EMOJI.lock} ${t(lang, 'checkout.title')}`,
     ``,
     `<b>${order.name}</b> × ${order.qty}`,
-    `Unit: ${formatPrice(order.unit, order.currency)}`,
-    `Total: <b>${formatPrice(order.total, order.currency)}</b>`,
-    `Order: <code>${shortId}</code>`,
+    `${t(lang, 'checkout.unit')}: ${formatPrice(order.unit, order.currency)}`,
+    `${t(lang, 'checkout.total')}: <b>${formatPrice(order.total, order.currency)}</b>`,
+    `${t(lang, 'checkout.order_no')}: <code>${shortId}</code>`,
     ``,
-    `Payment method choose karein — sab kuch yahi chat me hoga.`,
+    t(lang, 'checkout.choose_method'),
   ];
 
   // Show equivalent amount preview per method
@@ -809,30 +806,30 @@ async function sendPaymentChooser(
   const buttons: InlineButton[][] = methods.map((m) => [
     { text: `${EMOJI.pay} ${methodLabel(m)}`, callback_data: `pm:${m}:${orderId}` },
   ]);
-  buttons.push([{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }]);
+  buttons.push([{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }]);
 
   await sendMessage(chat_id, lines.join('\n'), { reply_markup: { inline_keyboard: buttons } });
 }
 
-async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: string) {
+async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: string, lang: Lang = 'en') {
   const { data: order } = await admin()
     .from('orders')
     .select('id,total_cents,currency,status')
     .eq('id', orderId)
     .maybeSingle();
   if (!order) {
-    await sendMessage(chat_id, `${EMOJI.cross} Order not found.`);
+    await sendMessage(chat_id, `${EMOJI.cross} ${t(lang, 'order.not_found')}`);
     return;
   }
   if ((order as any).status !== 'pending') {
-    await sendMessage(chat_id, `${EMOJI.check} Order already <b>${(order as any).status}</b>.`);
+    await sendMessage(chat_id, `${EMOJI.check} ${t(lang, 'order.already', { status: (order as any).status })}`);
     return;
   }
   const { text, photo } = await buildPaymentInstruction(order as any, method);
   const reply_markup = {
     inline_keyboard: [
-      [{ text: `${EMOJI.back} Change method`, callback_data: `pm_back:${orderId}` }],
-      [{ text: `${EMOJI.cross} Cancel`, callback_data: 'shop' }],
+      [{ text: t(lang, 'btn.change_method'), callback_data: `pm_back:${orderId}` }],
+      [{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }],
     ],
   };
   if (photo) {
@@ -842,7 +839,7 @@ async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: s
   }
 }
 
-async function sendOrders(chat_id: number, telegram_id: number) {
+async function sendOrders(chat_id: number, telegram_id: number, lang: Lang = 'en') {
   const { data: orders } = await admin()
     .from('orders')
     .select('id, status, total_cents, currency, created_at')
@@ -851,8 +848,8 @@ async function sendOrders(chat_id: number, telegram_id: number) {
     .limit(10);
 
   if (!orders?.length) {
-    await sendMessage(chat_id, `${EMOJI.orders} You have no orders yet.`, {
-      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.shop} Browse Shop`, callback_data: 'shop' }]] },
+    await sendMessage(chat_id, `${EMOJI.orders} ${t(lang, 'orders.empty')}`, {
+      reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.browse_shop'), callback_data: 'shop' }]] },
     });
     return;
   }
@@ -866,12 +863,12 @@ async function sendOrders(chat_id: number, telegram_id: number) {
     return `${status}  ${formatPrice(o.total_cents, o.currency)}  ·  <code>${String(o.id).slice(0, 8)}</code>  ·  ${date}`;
   });
 
-  await sendMessage(chat_id, `${EMOJI.orders} <b>Your Orders</b>\n\n${lines.join('\n')}`, {
-    reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Home`, callback_data: 'home' }]] },
+  await sendMessage(chat_id, `${EMOJI.orders} ${t(lang, 'orders.title')}\n\n${lines.join('\n')}`, {
+    reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.home'), callback_data: 'home' }]] },
   });
 }
 
-async function sendMyProducts(chat_id: number, telegram_id: number) {
+async function sendMyProducts(chat_id: number, telegram_id: number, lang: Lang = 'en') {
   const { data: deliveries } = await admin()
     .from('deliveries')
     .select('id, payload_snapshot, delivered_at, products(name), orders!inner(telegram_id)')
@@ -880,14 +877,14 @@ async function sendMyProducts(chat_id: number, telegram_id: number) {
     .limit(20);
 
   if (!deliveries?.length) {
-    await sendMessage(chat_id, `${EMOJI.key} You have no delivered products yet.`, {
-      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.shop} Browse Shop`, callback_data: 'shop' }]] },
+    await sendMessage(chat_id, `${EMOJI.key} ${t(lang, 'products.empty')}`, {
+      reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.browse_shop'), callback_data: 'shop' }]] },
     });
     return;
   }
 
   const text = [
-    `${EMOJI.key} <b>My Products</b>`,
+    `${EMOJI.key} ${t(lang, 'products.title')}`,
     ``,
     ...deliveries.map((d: any) =>
       `${EMOJI.gem} <b>${d.products?.name ?? 'Product'}</b>\n<code>${d.payload_snapshot}</code>`,
@@ -895,7 +892,7 @@ async function sendMyProducts(chat_id: number, telegram_id: number) {
   ].join('\n\n');
 
   await sendMessage(chat_id, text, {
-    reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Home`, callback_data: 'home' }]] },
+    reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.home'), callback_data: 'home' }]] },
   });
 }
 
