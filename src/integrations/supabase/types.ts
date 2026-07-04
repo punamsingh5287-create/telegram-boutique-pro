@@ -314,6 +314,27 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_webhook_events: {
+        Row: {
+          environment: string
+          event_id: string
+          received_at: string
+          type: string
+        }
+        Insert: {
+          environment: string
+          event_id: string
+          received_at?: string
+          type: string
+        }
+        Update: {
+          environment?: string
+          event_id?: string
+          received_at?: string
+          type?: string
+        }
+        Relationships: []
+      }
       telegram_users: {
         Row: {
           chat_id: number
