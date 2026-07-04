@@ -458,7 +458,7 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
   return true;
 }
 
-async function sendShop(chat_id: number) {
+async function sendShop(chat_id: number, lang: Lang = 'en') {
   // Start the premium emoji popup immediately and keep the webhook alive until
   // its delete finishes, so the message reliably vanishes after the effect starts.
   const popupCleanup = flashShopPopup(chat_id);
@@ -473,13 +473,13 @@ async function sendShop(chat_id: number) {
       .limit(10);
 
     if (!products?.length) {
-      await sendMessage(chat_id, `${EMOJI.clock} <b>The catalog is empty.</b>\nOur team is preparing something premium — check back soon.`, {
-        reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'home' }]] },
+      await sendMessage(chat_id, `${EMOJI.clock} ${t(lang, 'shop.empty')}`, {
+        reply_markup: { inline_keyboard: [[{ text: t(lang, 'btn.back'), callback_data: 'home' }]] },
       });
       return;
     }
 
-    await sendMessage(chat_id, `${EMOJI.shop} <b>Mateo Store · Catalog</b>\nSelect a product to view details.`, {
+    await sendMessage(chat_id, `${EMOJI.shop} ${t(lang, 'shop.title')}`, {
       reply_markup: {
         inline_keyboard: [
           ...products.map((p: any) => [{
@@ -487,7 +487,7 @@ async function sendShop(chat_id: number) {
             callback_data: `p:${p.id}`,
             ...(p.custom_emoji_id ? { icon_custom_emoji_id: p.custom_emoji_id } : {}),
           }]),
-          [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
+          [{ text: t(lang, 'btn.back'), callback_data: 'home' }],
         ],
       },
     });
