@@ -376,7 +376,7 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 async function sendShop(chat_id: number) {
   const { data: products } = await admin()
     .from('products')
-    .select('id, slug, name, short_description, price_cents, currency, featured')
+    .select('id, slug, name, emoji, short_description, price_cents, currency, featured')
     .eq('active', true)
     .order('featured', { ascending: false })
     .order('created_at', { ascending: false })
@@ -393,7 +393,7 @@ async function sendShop(chat_id: number) {
     reply_markup: {
       inline_keyboard: [
         ...products.map((p: any) => [{
-          text: `${p.featured ? EMOJI.star + ' ' : ''}${p.name}  ·  ${formatPrice(p.price_cents, p.currency)}`,
+          text: `${p.featured ? EMOJI.star + ' ' : ''}${p.emoji ? p.emoji + ' ' : ''}${p.name}  ·  ${formatPrice(p.price_cents, p.currency)}`,
           callback_data: `p:${p.id}`,
         }]),
         [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
@@ -405,7 +405,7 @@ async function sendShop(chat_id: number) {
 async function sendProduct(chat_id: number, productId: string) {
   const { data: p } = await admin()
     .from('products')
-    .select('id, name, description, short_description, price_cents, currency, image_url')
+    .select('id, name, emoji, custom_emoji_id, description, short_description, price_cents, currency, image_url')
     .eq('id', productId)
     .eq('active', true)
     .maybeSingle();
@@ -416,8 +416,13 @@ async function sendProduct(chat_id: number, productId: string) {
   }
 
   const price = formatPrice((p as any).price_cents, (p as any).currency);
+  const pe = (p as any).emoji as string | null;
+  const pid = (p as any).custom_emoji_id as string | null;
+  const emojiHtml = pe
+    ? (pid ? `<tg-emoji emoji-id="${pid}">${pe}</tg-emoji>` : pe)
+    : EMOJI.gem;
   const text = [
-    `${EMOJI.gem} <b>${(p as any).name}</b>`,
+    `${emojiHtml} <b>${(p as any).name}</b>`,
     ``,
     (p as any).short_description ? `<i>${(p as any).short_description}</i>\n` : '',
     (p as any).description ?? '',

@@ -402,8 +402,10 @@ export type Database = {
           active: boolean
           created_at: string
           currency: string
+          custom_emoji_id: string | null
           delivery_type: string
           description: string | null
+          emoji: string | null
           featured: boolean
           id: string
           image_url: string | null
@@ -418,8 +420,10 @@ export type Database = {
           active?: boolean
           created_at?: string
           currency?: string
+          custom_emoji_id?: string | null
           delivery_type?: string
           description?: string | null
+          emoji?: string | null
           featured?: boolean
           id?: string
           image_url?: string | null
@@ -434,8 +438,10 @@ export type Database = {
           active?: boolean
           created_at?: string
           currency?: string
+          custom_emoji_id?: string | null
           delivery_type?: string
           description?: string | null
+          emoji?: string | null
           featured?: boolean
           id?: string
           image_url?: string | null
