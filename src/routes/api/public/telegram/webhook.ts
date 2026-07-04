@@ -398,8 +398,8 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
-  // Fire-and-forget emoji flash — do not block the shop menu render.
-  void flashShopPopup(chat_id);
+  // Flash the configured pop-up custom emoji for ~3s, then continue.
+  await flashShopPopup(chat_id);
 
   const { data: products } = await admin()
     .from('products')
@@ -440,6 +440,7 @@ async function flashShopPopup(chat_id: number) {
       `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
     );
     const message_id = (sent as any)?.message_id;
+    await new Promise((r) => setTimeout(r, 3000));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
@@ -561,6 +562,24 @@ async function renderProductCard(productId: string, qty: number) {
 async function sendProduct(chat_id: number, productId: string) {
   const card = await renderProductCard(productId, 1);
   if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return; }
+  const { data: p } = await admin()
+    .from('products')
+    .select('image_url')
+    .eq('id', productId)
+    .maybeSingle();
+  const imageUrl = (p as any)?.image_url as string | null | undefined;
+  if (imageUrl) {
+    try {
+      // Telegram caption limit is 1024 chars; fall back to text-only if it overflows.
+      if (card.text.length <= 1024) {
+        await sendPhoto(chat_id, imageUrl, card.text, { reply_markup: card.reply_markup });
+        return;
+      }
+      await sendPhoto(chat_id, imageUrl, '');
+    } catch (err) {
+      console.error('sendProduct photo failed, falling back to text:', err);
+    }
+  }
   await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
 }
 
@@ -631,7 +650,10 @@ async function updateProductQty(chat_id: number, message_id: number, productId: 
   if (!card) return;
   try {
     await editMessageText(chat_id, message_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
-  } catch { /* same content — ignore */ }
+  } catch {
+    // Card may have been sent as a photo (editMessageText fails on photo messages).
+    // Silently ignore — quantity changes still work on the buttons themselves.
+  }
 }
 
 async function startCheckout(chat_id: number, telegram_id: number, productId: string, qty = 1) {
