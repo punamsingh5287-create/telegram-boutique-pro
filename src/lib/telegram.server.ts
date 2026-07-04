@@ -17,7 +17,12 @@ async function call<T = any>(method: string, payload?: Record<string, unknown>):
   return json.result as T;
 }
 
-export type InlineButton = { text: string; callback_data?: string; url?: string };
+export type InlineButton = {
+  text: string;
+  callback_data?: string;
+  url?: string;
+  icon_custom_emoji_id?: string;
+};
 
 type InlineReplyMarkup = { inline_keyboard: InlineButton[][] };
 
@@ -43,18 +48,29 @@ async function withPremiumEmojis(text: string, parse_mode?: string): Promise<str
 async function withPremiumReplyMarkup(reply_markup?: InlineReplyMarkup): Promise<InlineReplyMarkup | undefined> {
   if (!reply_markup) return reply_markup;
   try {
-    const { getBotConfig, applyPremiumEmojis } = await import('./telegram-bot-config.server');
+    const { getBotConfig } = await import('./telegram-bot-config.server');
     const cfg = await getBotConfig();
     const buttonEmojiMap = Object.fromEntries(
       Object.values(cfg.buttons ?? {})
         .filter((button) => button?.emoji && button?.premium_id)
         .map((button) => [button.emoji, button.premium_id as string]),
     );
-    const map = { ...cfg.emoji_map, ...buttonEmojiMap };
+    const map = Object.entries({ ...cfg.emoji_map, ...buttonEmojiMap })
+      .filter(([emoji, id]) => emoji && id)
+      .sort((a, b) => b[0].length - a[0].length);
     return {
       inline_keyboard: reply_markup.inline_keyboard.map((row) => row.map((button) => ({
         ...button,
-        text: applyPremiumEmojis(button.text, map),
+        ...(() => {
+          if (button.icon_custom_emoji_id) return {};
+          const match = map.find(([emoji]) => button.text.startsWith(emoji));
+          if (!match) return {};
+          const [emoji, id] = match;
+          return {
+            icon_custom_emoji_id: id,
+            text: button.text.slice(emoji.length).trimStart() || button.text,
+          };
+        })(),
       }))),
     };
   } catch {

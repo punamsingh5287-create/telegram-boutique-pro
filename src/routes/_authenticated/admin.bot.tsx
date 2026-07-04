@@ -255,8 +255,7 @@ function BotPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Telegram inline buttons show plain text only — animated emojis don't render in button
-            labels. The fallback emoji here is what users see on the button.
+            Add a Premium custom emoji ID to show it as the button icon on Telegram's supported clients.
           </p>
           <div className="grid grid-cols-[60px_1fr_1.2fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
             <div>Emoji</div>
@@ -302,10 +301,8 @@ function BotPage() {
             );
           })}
           <p className="text-[11px] text-muted-foreground">
-            Note: Telegram inline <b>button labels</b> render plain text only — animated emojis don't
-            play inside buttons. The premium ID is used when this button's emoji appears in message
-            text (headers, confirmations, etc.). For universal animation, also add the emoji to the
-            <b> Premium emoji map</b> above.
+            If a Premium ID is set, the bot sends Telegram's <b>icon_custom_emoji_id</b> field for that button.
+            Also add the same emoji to the <b>Premium emoji map</b> for message text.
           </p>
         </CardContent>
       </Card>
