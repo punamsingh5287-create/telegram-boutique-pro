@@ -13,6 +13,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -23,10 +24,25 @@ function AuthPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    navigate({ to: "/admin/deliveries" });
+    if (mode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth` },
+      });
+      setLoading(false);
+      if (error) return toast.error(error.message);
+      if (!data.session) {
+        toast.success("Check your email to confirm your account.");
+        return;
+      }
+      navigate({ to: "/admin/deliveries" });
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) return toast.error(error.message);
+      navigate({ to: "/admin/deliveries" });
+    }
   };
 
   return (
@@ -35,7 +51,9 @@ function AuthPage() {
       <form onSubmit={onSubmit} className="glass relative w-full max-w-sm rounded-2xl p-8 space-y-4">
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.3em] text-gold">Mateo Store</p>
-          <h1 className="mt-1 text-2xl font-semibold text-foreground">Admin sign in</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-foreground">
+            {mode === "signup" ? "Create admin account" : "Admin sign in"}
+          </h1>
         </div>
         <label className="block space-y-1">
           <span className="text-xs text-muted-foreground">Email</span>
@@ -48,7 +66,8 @@ function AuthPage() {
         <label className="block space-y-1">
           <span className="text-xs text-muted-foreground">Password</span>
           <input
-            type="password" required autoComplete="current-password" value={password}
+            type="password" required minLength={mode === "signup" ? 8 : undefined}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-white/10 bg-background/40 px-3 py-2 text-sm text-foreground focus:border-primary/50 outline-none"
           />
@@ -57,8 +76,18 @@ function AuthPage() {
           type="submit" disabled={loading}
           className="w-full rounded-lg bg-gradient-royal px-4 py-2 text-sm font-medium text-primary-foreground shadow-royal disabled:opacity-60"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? (mode === "signup" ? "Creating account…" : "Signing in…") : mode === "signup" ? "Create account" : "Sign in"}
         </button>
+        <p className="text-center text-xs text-muted-foreground">
+          {mode === "signup" ? "Already have an account?" : "Need an account?"}{" "}
+          <button
+            type="button"
+            onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+            className="text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            {mode === "signup" ? "Sign in" : "Sign up"}
+          </button>
+        </p>
       </form>
     </div>
   );
