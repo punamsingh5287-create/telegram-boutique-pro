@@ -180,3 +180,39 @@ export const resendOrderDelivery = createServerFn({ method: "POST" })
     if (result.ok) return { ok: true, attempts: result.attempts };
     return { ok: false, error: result.error };
   });
+
+export type BulkResendItem =
+  | { orderId: string; ok: true; attempts: number }
+  | { orderId: string; ok: false; error: string };
+
+export const bulkResendOrderDeliveries = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { orderIds: string[] }) => {
+    if (!Array.isArray(data.orderIds) || data.orderIds.length === 0) {
+      throw new Error("No orders selected");
+    }
+    if (data.orderIds.length > 50) throw new Error("Too many orders (max 50)");
+    for (const id of data.orderIds) {
+      if (!UUID_ONLY.test(id)) throw new Error("Invalid order id");
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; results: BulkResendItem[] } | { ok: false; error: string }> => {
+    const { data: isAdmin } = await (context.supabase as any).rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) return { ok: false, error: "Forbidden" };
+
+    const { sendOrderDeliveryDM } = await import("@/lib/delivery.server");
+    const results: BulkResendItem[] = [];
+    for (const orderId of data.orderIds) {
+      try {
+        const r = await sendOrderDeliveryDM(orderId);
+        results.push(r.ok ? { orderId, ok: true, attempts: r.attempts } : { orderId, ok: false, error: r.error });
+      } catch (e) {
+        results.push({ orderId, ok: false, error: e instanceof Error ? e.message : "Unknown error" });
+      }
+    }
+    return { ok: true, results };
+  });
