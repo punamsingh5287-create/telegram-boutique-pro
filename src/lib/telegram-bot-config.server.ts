@@ -91,10 +91,7 @@ export function renderEmoji(b: BotButton): string {
 }
 
 export function renderButtonText(b: BotButton): string {
-  // Inline keyboard button.text is plain text — Telegram does not parse HTML
-  // inside button labels — so premium emoji tags cannot animate here. We still
-  // ship the fallback glyph so the button reads correctly.
-  return `${b.emoji} ${b.label}`;
+  return `${renderEmoji(b)} ${b.label}`;
 }
 
 // ------------------------------------------------------------------
