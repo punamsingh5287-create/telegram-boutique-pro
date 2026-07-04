@@ -1,8 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { useMemo } from "react";
-import { getOrderForCheckout, createOrderCheckoutSession, type OrderSummary } from "@/lib/orders.functions";
+import { useMemo, useState } from "react";
+import { getOrderForCheckout, createOrderCheckoutSession, submitPaymentClaim, type OrderSummary } from "@/lib/orders.functions";
 import { getStripe, getStripeEnvironment } from "@/lib/stripe";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
@@ -105,6 +105,70 @@ function OrderSummaryCard({ order }: { order: OrderSummary }) {
   );
 }
 
+function VerifiedReferenceForm({ orderId }: { orderId: string }) {
+  const [method, setMethod] = useState<"crypto" | "inr_utr">("crypto");
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await submitPaymentClaim({ data: { orderId, method, reference } });
+      if (!res.ok) throw new Error(res.error);
+      setMessage(res.message);
+      setReference("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit payment reference");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="glass mt-4 rounded-2xl p-5">
+      <h2 className="text-sm font-semibold text-foreground">Crypto hash / INR UTR verification</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Submit a payment reference only after paying. A used hash/UTR is blocked permanently, and delivery starts only after backend verification confirms the exact order amount.
+      </p>
+      <form onSubmit={submit} className="mt-4 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMethod("crypto")}
+            className={method === "crypto" ? "btn-royal py-2" : "btn-ghost-color py-2"}
+          >
+            Crypto hash
+          </button>
+          <button
+            type="button"
+            onClick={() => setMethod("inr_utr")}
+            className={method === "inr_utr" ? "btn-gold py-2" : "btn-ghost-color py-2"}
+          >
+            INR UTR
+          </button>
+        </div>
+        <input
+          required
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+          placeholder={method === "crypto" ? "0x… transaction hash" : "UPI/bank UTR number"}
+          className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+        {message && <p className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-2 text-xs text-emerald-500">{message}</p>}
+        {error && <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{error}</p>}
+        <button type="submit" disabled={busy || !reference.trim()} className="btn-premium w-full py-2.5 disabled:opacity-60">
+          {busy ? "Submitting…" : "Submit for verification"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function PayPage() {
   const { orderId } = Route.useParams();
   const { data: order } = useSuspenseQuery(orderQuery(orderId));
@@ -159,6 +223,7 @@ function PayPage() {
           <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
             <EmbeddedCheckout />
           </EmbeddedCheckoutProvider>
+          <VerifiedReferenceForm orderId={orderId} />
         </div>
         <OrderSummaryCard order={order} />
       </div>

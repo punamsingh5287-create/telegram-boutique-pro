@@ -114,6 +114,65 @@ export const createOrderCheckoutSession = createServerFn({ method: "POST" })
     }
   });
 
+type PaymentClaimResult =
+  | { ok: true; status: "submitted"; message: string }
+  | { ok: false; error: string };
+
+function normalizePaymentReference(method: "crypto" | "inr_utr", reference: string) {
+  const compact = reference.trim().replace(/[\s-]+/g, "");
+  if (method === "crypto") return compact.toLowerCase();
+  return compact.toUpperCase();
+}
+
+export const submitPaymentClaim = createServerFn({ method: "POST" })
+  .inputValidator((data: { orderId: string; method: "crypto" | "inr_utr"; reference: string }) => {
+    if (!UUID_RE.test(data.orderId)) throw new Error("Invalid order id");
+    if (data.method !== "crypto" && data.method !== "inr_utr") throw new Error("Invalid payment method");
+    const reference = data.reference.trim();
+    if (data.method === "crypto" && !/^(0x)?[a-fA-F0-9]{64}$/.test(reference.replace(/[\s-]+/g, ""))) {
+      throw new Error("Enter a valid crypto transaction hash");
+    }
+    if (data.method === "inr_utr" && !/^[a-zA-Z0-9\s-]{6,30}$/.test(reference)) {
+      throw new Error("Enter a valid UTR/reference number");
+    }
+    return { orderId: data.orderId, method: data.method, reference };
+  })
+  .handler(async ({ data }): Promise<PaymentClaimResult> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id,status,total_cents,currency,telegram_id,chat_id")
+      .eq("id", data.orderId)
+      .maybeSingle();
+    if (error || !order) return { ok: false, error: "Order not found" };
+    if (order.status !== "pending") return { ok: false, error: `Order is already ${order.status}` };
+
+    const normalized = normalizePaymentReference(data.method, data.reference);
+    const { error: claimError } = await (supabaseAdmin as any).from("payment_claims").insert({
+      order_id: order.id,
+      telegram_id: order.telegram_id,
+      chat_id: order.chat_id,
+      method: data.method,
+      reference: data.reference,
+      normalized_reference: normalized,
+      amount_cents: order.total_cents,
+      currency: order.currency,
+      status: "submitted",
+      provider: data.method === "crypto" ? "block_explorer" : "razorpay_cashfree",
+    });
+    if (claimError) {
+      if ((claimError as { code?: string }).code === "23505") {
+        return { ok: false, error: "This transaction reference was already used" };
+      }
+      return { ok: false, error: claimError.message };
+    }
+    return {
+      ok: true,
+      status: "submitted",
+      message: "Reference submitted. Delivery will start only after verified payment confirmation.",
+    };
+  });
+
 export type FailedDelivery = {
   id: string;
   shortId: string;
