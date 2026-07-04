@@ -17,7 +17,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/admin/deliveries" });
+      if (data.user) navigate({ to: "/admin" });
     });
   }, [navigate]);
 
@@ -36,12 +36,12 @@ function AuthPage() {
         toast.success("Check your email to confirm your account.");
         return;
       }
-      navigate({ to: "/admin/deliveries" });
+      navigate({ to: "/admin" });
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setLoading(false);
       if (error) return toast.error(error.message);
-      navigate({ to: "/admin/deliveries" });
+      navigate({ to: "/admin" });
     }
   };
 
