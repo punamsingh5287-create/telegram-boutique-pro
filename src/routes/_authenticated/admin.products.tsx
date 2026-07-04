@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { listAdminProducts, saveProduct, deleteProduct, getProductStock, addDigitalAssets, type AdminProduct } from "@/lib/admin-products.functions";
+import { uploadProductImage } from "@/lib/admin-uploads.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Pencil, Plus, Trash2, Sparkles } from "lucide-react";
@@ -234,6 +235,11 @@ function ProductSheet({
           </Field>
           <Field label={<><TgEmoji>🖼️</TgEmoji> Cover image URL</>} hint="Public https:// image link">
             <input placeholder="https://…" value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputCls} />
+            <ImageUploader
+              folder="products"
+              currentUrl={form.imageUrl ?? ""}
+              onUploaded={(url) => setForm({ ...form, imageUrl: url })}
+            />
             {form.imageUrl && (
               <img src={form.imageUrl} alt="preview" className="mt-2 h-24 w-24 rounded-md border object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}} />
             )}
@@ -273,6 +279,57 @@ function ProductSheet({
 }
 
 const inputCls = "w-full rounded-md border bg-background px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 focus:border-fuchsia-500/60";
+
+function ImageUploader({
+  folder, currentUrl, onUploaded,
+}: { folder: string; currentUrl?: string; onUploaded: (url: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <label className={"btn-ghost-color cursor-pointer text-xs " + (busy ? "opacity-50 pointer-events-none" : "")}>
+        <TgEmoji>📤</TgEmoji> {busy ? "Uploading…" : (currentUrl ? "Replace image" : "Upload image")}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={busy}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.currentTarget.value = "";
+            if (!file) return;
+            if (file.size > 8 * 1024 * 1024) { toast.error("Max 8 MB"); return; }
+            setBusy(true);
+            try {
+              const base64 = await fileToBase64(file);
+              const res = await uploadProductImage({ data: {
+                base64, filename: file.name, contentType: file.type || "image/jpeg", folder,
+              } });
+              if (!res.ok) throw new Error(res.error);
+              onUploaded(res.url);
+              toast.success("Image uploaded");
+            } catch (err: any) {
+              toast.error(err?.message ?? "Upload failed");
+            } finally { setBusy(false); }
+          }}
+        />
+      </label>
+      <span className="text-[10px] text-muted-foreground">JPG / PNG / WebP · max 8 MB</span>
+    </div>
+  );
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
+}
 
 function ProductEmoji({ emoji, customEmojiId }: { emoji?: string | null; customEmojiId?: string | null }) {
   const fallback = emoji || "💎";

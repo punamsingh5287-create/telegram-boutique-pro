@@ -28,6 +28,8 @@ export type BotButton = {
 export type BotConfig = {
   welcome_text: string;
   welcome_footer: string;
+  /** Optional cover image (URL) shown above the welcome text. */
+  welcome_image_url?: string | null;
   support_handle: string;
   admin_ids: number[];
   buttons: Record<string, BotButton>;
