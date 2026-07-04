@@ -440,6 +440,7 @@ async function flashShopPopup(chat_id: number) {
       `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
     );
     const message_id = (sent as any)?.message_id;
+    await new Promise((r) => setTimeout(r, 3000));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
