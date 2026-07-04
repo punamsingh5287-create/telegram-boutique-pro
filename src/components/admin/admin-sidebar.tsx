@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { TgEmoji } from "@/components/ui/tg-emoji";
 
 type NavItem = { title: string; url: string; icon: any; emoji: string; disabled?: boolean };
 
@@ -86,13 +87,15 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 text-white text-base shadow-md">
-            💎
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-amber-400 text-white text-base shadow-lg shadow-fuchsia-500/40">
+            <TgEmoji animated>💎</TgEmoji>
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">Mateo Store</div>
-              <div className="truncate text-xs text-muted-foreground">✨ Premium admin</div>
+              <div className="truncate text-xs text-muted-foreground">
+                <TgEmoji variant="gold">✨</TgEmoji> Premium admin
+              </div>
             </div>
           )}
         </div>
@@ -115,7 +118,7 @@ export function AdminSidebar() {
                           tooltip={collapsed ? `${item.emoji} ${item.title} (soon)` : undefined}
                         >
                           <Icon className="h-4 w-4" />
-                          <span>{item.emoji} {item.title}</span>
+                          <span><TgEmoji>{item.emoji}</TgEmoji> {item.title}</span>
                           <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                             soon
                           </span>
@@ -132,7 +135,7 @@ export function AdminSidebar() {
                       >
                         <Link to={item.url}>
                           <Icon className="h-4 w-4" />
-                          <span>{item.emoji} {item.title}</span>
+                          <span><TgEmoji>{item.emoji}</TgEmoji> {item.title}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -148,7 +151,7 @@ export function AdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={signOut} tooltip={collapsed ? "🚪 Sign out" : undefined}>
               <LogOut className="h-4 w-4" />
-              <span>🚪 Sign out</span>
+              <span><TgEmoji>🚪</TgEmoji> Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
