@@ -200,7 +200,34 @@ async function binanceCall(path: string, body: any, cfg: PaymentConfig): Promise
     },
     body: payload,
   });
-  return res.json().catch(() => ({}));
+  const text = await res.text();
+  let json: any = {};
+  try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
+  if (json?.status !== "SUCCESS" || json?.code !== "000000") {
+    console.error("[binance-pay]", path, "http=", res.status, "resp=", text.slice(0, 500));
+  }
+  return json;
+}
+
+/** Ping Binance Pay with a harmless certificates query to verify keys work. */
+export async function testBinancePayKeys(cfg: PaymentConfig): Promise<{ ok: boolean; message: string; raw?: any }> {
+  if (!cfg.binance?.api_key || !cfg.binance?.api_secret) {
+    return { ok: false, message: "API Key ya Secret set nahi hai." };
+  }
+  // Certificates endpoint is a light read-only Merchant Pay call — perfect health check.
+  const json = await binanceCall("/binancepay/openapi/certificates", {}, cfg);
+  if (json?.status === "SUCCESS" && json?.code === "000000") {
+    return { ok: true, message: "✅ Binance Merchant Pay keys VALID — auto-verify chalu ho jayega." };
+  }
+  const code = json?.code || "unknown";
+  const msg = json?.errorMessage || json?.raw || "Unknown error";
+  let hint = "";
+  if (String(code) === "401" || /signature|SN|certificate/i.test(String(msg))) {
+    hint = "\n\n👉 Ye keys **Merchant Pay** ke hone chahiye (pay.binance.com → Merchant Dashboard → Developers → API Management). Regular Binance trading API keys yaha kaam nahi karti.";
+  } else if (/permission|forbidden|403/i.test(String(msg))) {
+    hint = "\n\n👉 Merchant account KYB verified hai kya? Pay API tab hi enable hoti hai jab merchant approved ho.";
+  }
+  return { ok: false, message: `❌ Binance error [${code}]: ${msg}${hint}`, raw: json };
 }
 
 /** Create a Binance Pay order pinned to our order id so we can later query it. */
