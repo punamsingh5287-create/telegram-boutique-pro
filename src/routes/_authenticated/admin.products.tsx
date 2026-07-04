@@ -22,7 +22,7 @@ function money(c: number, cur: string) {
 }
 
 const empty = {
-  slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
+  slug: "", name: "", emoji: "💎", customEmojiId: "", shortDescription: "", description: "",
   priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "license_key",
   active: true, featured: false, bulkTiers: [] as Array<{ min: number; max: number | null; unitCents: number }>,
 };
@@ -102,7 +102,10 @@ function ProductsPage() {
             <CardContent className="p-4">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate font-semibold">{p.name}</div>
+                  <div className="flex min-w-0 items-center gap-2 font-semibold">
+                    <ProductEmoji emoji={p.emoji} customEmojiId={p.customEmojiId} />
+                    <span className="truncate">{p.name}</span>
+                  </div>
                   <div className="truncate font-mono text-xs text-muted-foreground">{p.slug}</div>
                 </div>
                 <div className="shrink-0 text-right">
@@ -171,6 +174,7 @@ function ProductSheet({
 }) {
   const [form, setForm] = useState<any>(initial);
   const priceMajor = ((form.priceCents ?? 0) / 100).toString();
+  const fallbackEmoji = form.emoji || "💎";
   return (
     <Sheet open={open} onOpenChange={onOpenChange} key={(initial as any).id ?? "new"}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -198,6 +202,11 @@ function ProductSheet({
             <Field label={<><TgEmoji variant="gold">✨</TgEmoji> Custom emoji ID</>} hint="Telegram Premium animated emoji ID (optional)">
               <input placeholder="5368324170671202286" value={form.customEmojiId ?? ""} onChange={(e) => setForm({ ...form, customEmojiId: e.target.value })} className={inputCls + " font-mono text-xs"} />
             </Field>
+          </div>
+          <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-sm">
+            <span className="font-semibold">Preview:</span>{" "}
+            <ProductEmoji emoji={fallbackEmoji} customEmojiId={form.customEmojiId} />{" "}
+            <span className="text-muted-foreground">{form.customEmojiId ? "custom emoji ID saved with this fallback emoji" : "normal emoji fallback"}</span>
           </div>
           <Field label={<><TgEmoji>🔗</TgEmoji> Slug</>} hint="URL identifier, lowercase, no spaces">
             <input required placeholder="premium-course" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
@@ -264,6 +273,16 @@ function ProductSheet({
 }
 
 const inputCls = "w-full rounded-md border bg-background px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 focus:border-fuchsia-500/60";
+
+function ProductEmoji({ emoji, customEmojiId }: { emoji?: string | null; customEmojiId?: string | null }) {
+  const fallback = emoji || "💎";
+  return (
+    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-lg" title={customEmojiId ? `Custom emoji ID: ${customEmojiId}` : fallback}>
+      <TgEmoji variant={customEmojiId ? "gold" : "royal"} animated={Boolean(customEmojiId)}>{fallback}</TgEmoji>
+    </span>
+  );
+}
+
 function Field({ label, hint, children }: { label: React.ReactNode; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
