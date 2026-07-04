@@ -22,6 +22,8 @@ export type InlineButton = {
   callback_data?: string;
   url?: string;
   icon_custom_emoji_id?: string;
+  /** Bot API 9.4+: colored button style. */
+  style?: 'primary' | 'success' | 'danger';
 };
 
 type InlineReplyMarkup = { inline_keyboard: InlineButton[][] };

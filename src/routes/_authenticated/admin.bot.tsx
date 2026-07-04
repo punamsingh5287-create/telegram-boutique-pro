@@ -257,15 +257,16 @@ function BotPage() {
           <p className="text-xs text-muted-foreground">
             Best flow: open the bot admin panel, choose a button, then send the Premium emoji itself. The saved value appears here for review.
           </p>
-          <div className="grid grid-cols-[60px_1fr_1.2fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
+          <div className="grid grid-cols-[60px_1fr_110px_1.2fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
             <div>Emoji</div>
             <div>Label</div>
+            <div>Color</div>
             <div>Premium emoji saved</div>
           </div>
           {BUTTON_ORDER.map((key) => {
             const b = form.buttons[key] ?? { label: key, emoji: "•", premium_id: null };
             return (
-              <div key={key} className="grid grid-cols-[60px_1fr_1.2fr] gap-3">
+              <div key={key} className="grid grid-cols-[60px_1fr_110px_1.2fr] gap-3">
                 <input
                   value={b.emoji}
                   onChange={(e) =>
@@ -282,6 +283,27 @@ function BotPage() {
                   className={inp}
                   placeholder={key}
                 />
+                <select
+                  value={b.style ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      buttons: {
+                        ...form.buttons,
+                        [key]: {
+                          ...b,
+                          style: (e.target.value || null) as "primary" | "success" | "danger" | null,
+                        },
+                      },
+                    })
+                  }
+                  className={inp}
+                >
+                  <option value="">Default</option>
+                  <option value="primary">🔵 Primary</option>
+                  <option value="success">🟢 Success</option>
+                  <option value="danger">🔴 Danger</option>
+                </select>
                 <input
                   value={b.premium_id ?? ""}
                   onChange={(e) =>
@@ -301,7 +323,7 @@ function BotPage() {
             );
           })}
           <p className="text-[11px] text-muted-foreground">
-            You do not need to hunt IDs manually: send the Premium emoji to the Telegram admin panel and it captures the value automatically.
+            You do not need to hunt IDs manually: send the Premium emoji to the Telegram admin panel and it captures the value automatically. Colors use the Bot API 9.4 <code>style</code> field — supported clients render blue / green / red.
           </p>
         </CardContent>
       </Card>
