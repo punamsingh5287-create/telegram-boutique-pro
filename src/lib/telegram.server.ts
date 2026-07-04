@@ -128,6 +128,10 @@ export function deleteWebhook() {
   return call('deleteWebhook', { drop_pending_updates: true });
 }
 
+export function deleteMessage(chat_id: number | string, message_id: number) {
+  return call('deleteMessage', { chat_id, message_id }).catch(() => null);
+}
+
 export function getWebhookInfo() {
   return call('getWebhookInfo');
 }

@@ -9,6 +9,7 @@ import {
   formatPrice,
   EMOJI,
   type InlineButton,
+  deleteMessage,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -125,6 +126,21 @@ async function sendHome(chat_id: number, firstName?: string) {
   await sendMessage(chat_id, welcomeText(cfg, firstName), {
     reply_markup: { inline_keyboard: homeKeyboard(cfg) },
   });
+}
+
+const START_SPLASH_EMOJI_ID = '5384145649073663083';
+
+async function sendStartSplash(chat_id: number) {
+  try {
+    const sent = await sendMessage(
+      chat_id,
+      `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`,
+    ) as { message_id: number };
+    await new Promise((r) => setTimeout(r, 3000));
+    if (sent?.message_id) await deleteMessage(chat_id, sent.message_id);
+  } catch {
+    // splash is decorative — ignore failures
+  }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -573,6 +589,7 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      await sendStartSplash(chat_id);
       await sendHome(chat_id, from?.first_name);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
