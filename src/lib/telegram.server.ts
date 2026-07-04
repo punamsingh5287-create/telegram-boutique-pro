@@ -27,7 +27,12 @@ async function withPremiumEmojis(text: string, parse_mode?: string): Promise<str
   try {
     const { getBotConfig, applyPremiumEmojis } = await import('./telegram-bot-config.server');
     const cfg = await getBotConfig();
-    return applyPremiumEmojis(text, cfg.emoji_map ?? {});
+    const buttonEmojiMap = Object.fromEntries(
+      Object.values(cfg.buttons ?? {})
+        .filter((button) => button?.emoji && button?.premium_id)
+        .map((button) => [button.emoji, button.premium_id as string]),
+    );
+    return applyPremiumEmojis(text, { ...cfg.emoji_map, ...buttonEmojiMap });
   } catch {
     return text;
   }
