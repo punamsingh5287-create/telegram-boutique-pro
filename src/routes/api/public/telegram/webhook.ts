@@ -104,6 +104,8 @@ function escapeHtml(s: string): string {
 }
 
 function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset: number; length: number; custom_emoji_id?: string }>) {
+  const htmlMatch = text.match(/<tg-emoji\s+emoji-id=["'](\d+)["'][^>]*>([\s\S]*?)<\/tg-emoji>/i);
+  if (htmlMatch) return { emoji: htmlMatch[2], id: htmlMatch[1] };
   const entity = entities?.find((item) => item.type === 'custom_emoji' && item.custom_emoji_id);
   if (!entity) return null;
   return {
@@ -240,7 +242,7 @@ async function handleAdminCallback(chat_id: number, tg: number, data: string): P
     if (!sub) { await sendAdminEmojiMap(chat_id); return true; }
     if (sub === 'add') {
       await promptFor(chat_id, tg, { action: 'add_emoji_map' },
-        '➕ <b>Add premium emoji mapping</b>\n\nSend one message in the format:\n<code>😀 5368324170671202286</code>\n\nThat is: the emoji character, a space, then the numeric <code>custom_emoji_id</code>.');
+        '➕ <b>Add premium emoji mapping</b>\n\nSend the <b>Premium emoji itself</b>. Do not send an ID. The bot will read the emoji ID automatically.');
       return true;
     }
     if (sub === 'rm') {

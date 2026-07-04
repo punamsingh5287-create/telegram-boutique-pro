@@ -255,12 +255,12 @@ function BotPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Add a Premium custom emoji ID to show it as the button icon on Telegram's supported clients.
+            Best flow: open the bot admin panel, choose a button, then send the Premium emoji itself. The saved value appears here for review.
           </p>
           <div className="grid grid-cols-[60px_1fr_1.2fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
             <div>Emoji</div>
             <div>Label</div>
-            <div>Premium ID (optional)</div>
+            <div>Premium emoji saved</div>
           </div>
           {BUTTON_ORDER.map((key) => {
             const b = form.buttons[key] ?? { label: key, emoji: "•", premium_id: null };
@@ -294,15 +294,14 @@ function BotPage() {
                     })
                   }
                   className={inp + " font-mono text-xs"}
-                  placeholder="5368324170671202286"
+                  placeholder="Auto-filled when sent to bot"
                   inputMode="numeric"
                 />
               </div>
             );
           })}
           <p className="text-[11px] text-muted-foreground">
-            If a Premium ID is set, the bot sends Telegram's <b>icon_custom_emoji_id</b> field for that button.
-            Also add the same emoji to the <b>Premium emoji map</b> for message text.
+            You do not need to hunt IDs manually: send the Premium emoji to the Telegram admin panel and it captures the value automatically.
           </p>
         </CardContent>
       </Card>
