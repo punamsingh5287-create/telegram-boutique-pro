@@ -266,3 +266,64 @@ function Field({ label, hint, children }: { label: React.ReactNode; hint?: strin
     </label>
   );
 }
+
+function LicenseKeysSection({ productId }: { productId: string }) {
+  const qc = useQueryClient();
+  const [keys, setKeys] = useState("");
+  const { data: stock, refetch } = useQuery({
+    queryKey: ["admin", "product-stock", productId],
+    queryFn: async () => {
+      const res = await getProductStock({ data: { productId } });
+      if ("error" in res) throw new Error(res.error);
+      return res;
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const payloads = keys.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      if (!payloads.length) throw new Error("Paste at least one key or link");
+      const res = await addDigitalAssets({ data: { productId, payloads } });
+      if (!res.ok) throw new Error(res.error);
+      return res;
+    },
+    onSuccess: (res) => {
+      toast.success(`Added ${res.inserted} deliverables`);
+      setKeys("");
+      refetch();
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="rounded-lg border bg-gradient-to-br from-amber-500/5 to-fuchsia-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold flex items-center gap-1">
+          <TgEmoji variant="gold">🔑</TgEmoji> Auto-delivery inventory
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {stock ? `${stock.available} available · ${stock.claimed} delivered` : "…"}
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Paste one key / link / text payload <b>per line</b>. On payment success, one is auto-sent to the buyer on Telegram.
+      </p>
+      <textarea
+        rows={4}
+        value={keys}
+        onChange={(e) => setKeys(e.target.value)}
+        placeholder={"KEY-AAAA-BBBB-1111\nKEY-AAAA-BBBB-2222\nhttps://drive.google.com/…"}
+        className={inputCls + " font-mono text-xs"}
+      />
+      <button
+        type="button"
+        disabled={add.isPending || !keys.trim()}
+        onClick={() => add.mutate()}
+        className="btn-ghost-color w-full py-2 text-sm disabled:opacity-50"
+      >
+        {add.isPending ? <><TgEmoji>⏳</TgEmoji> Adding…</> : <><TgEmoji>➕</TgEmoji> Add to inventory</>}
+      </button>
+    </div>
+  );
+}
