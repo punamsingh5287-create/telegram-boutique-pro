@@ -809,6 +809,9 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      // Clear previous bot messages (catalog, product cards, etc.) so /start
+      // always opens a fresh chat instead of piling on top of old content.
+      await clearRecentChat(chat_id, msg.message_id);
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
       await flashStartSplash(chat_id);
