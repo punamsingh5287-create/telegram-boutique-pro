@@ -21,6 +21,20 @@ export type CryptoConfig = {
   min_confirmations: number;
 };
 
+export type BinanceConfig = {
+  enabled: boolean;
+  /** Binance Pay merchant ID (Pay ID) — shown to buyer for P2P/Pay transfer */
+  pay_id: string;
+  /** Binance email / username (optional, for display) */
+  account_email: string;
+  /** Binance Pay API key (Merchant → API Management) */
+  api_key: string;
+  /** Binance Pay API secret */
+  api_secret: string;
+  /** Accepted assets on Binance Pay, comma separated (e.g. "USDT,BTC") */
+  accepted_assets: string;
+};
+
 export type PaymentConfig = {
   upi: UpiConfig;
   razorpay: RazorpayConfig;
@@ -28,6 +42,7 @@ export type PaymentConfig = {
   crypto_bep20: CryptoConfig;
   crypto_erc20: CryptoConfig;
   crypto_btc: CryptoConfig;
+  binance: BinanceConfig;
   usd_to_inr_rate: number;
   usdt_to_usd_rate: number;
   amount_tolerance_pct: number;
@@ -44,6 +59,7 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   crypto_bep20: { enabled: false, address: "", api_key: "", min_confirmations: 15 },
   crypto_erc20: { enabled: false, address: "", api_key: "", min_confirmations: 12 },
   crypto_btc:   { enabled: false, address: "", api_key: "", min_confirmations: 1 },
+  binance: { enabled: false, pay_id: "", account_email: "", api_key: "", api_secret: "", accepted_assets: "USDT" },
   usd_to_inr_rate: 83,
   usdt_to_usd_rate: 1,
   amount_tolerance_pct: 2,
@@ -69,6 +85,7 @@ function merge(raw: any): PaymentConfig {
     crypto_bep20: { ...d.crypto_bep20, ...(v.crypto_bep20 ?? {}) },
     crypto_erc20: { ...d.crypto_erc20, ...(v.crypto_erc20 ?? {}) },
     crypto_btc:   { ...d.crypto_btc,   ...(v.crypto_btc ?? {}) },
+    binance: { ...d.binance, ...(v.binance ?? {}) },
     usd_to_inr_rate: Number(v.usd_to_inr_rate ?? d.usd_to_inr_rate) || d.usd_to_inr_rate,
     usdt_to_usd_rate: Number(v.usdt_to_usd_rate ?? d.usdt_to_usd_rate) || d.usdt_to_usd_rate,
     amount_tolerance_pct: Number(v.amount_tolerance_pct ?? d.amount_tolerance_pct),
