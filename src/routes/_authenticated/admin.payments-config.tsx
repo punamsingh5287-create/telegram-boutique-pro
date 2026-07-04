@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   getPaymentConfig,
   savePaymentConfig,
+  testBinancePay,
   DEFAULT_PAYMENT_CONFIG,
   type PaymentConfig,
   type CryptoConfig,
@@ -284,6 +285,32 @@ function PaymentsConfigPage() {
             <input className={inp} type="password" value={cfg.binance.api_secret}
               onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, api_secret: e.target.value.trim() } })} />
           </Field>
+          <div className="sm:col-span-2 rounded-md border bg-muted/30 p-3 space-y-2">
+            <div className="text-xs text-muted-foreground">
+              ⚠️ Auto-verify sirf tab chalta hai jab keys <b>pay.binance.com → Merchant Dashboard → Developers → API Management</b> se banayi ho.
+              Normal binance.com trading API keys yaha kaam nahi karti — endpoint hi alag hai.
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const t = toast.loading("Binance keys test kar rahe hain…");
+                try {
+                  // save first so latest keys are tested
+                  const s = await savePaymentConfig({ data: cfg });
+                  if (!s.ok) throw new Error(s.error || "save failed");
+                  const r = await testBinancePay();
+                  toast.dismiss(t);
+                  (r.ok ? toast.success : toast.error)(r.message, { duration: 10000 });
+                } catch (e: any) {
+                  toast.dismiss(t);
+                  toast.error(e.message || "test failed");
+                }
+              }}
+              className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
+            >
+              🔍 Test Binance keys (auto-verify check)
+            </button>
+          </div>
         </CardContent>
       </Card>
 
