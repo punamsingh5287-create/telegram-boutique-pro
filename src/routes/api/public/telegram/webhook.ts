@@ -551,6 +551,7 @@ async function renderProductCard(productId: string, qty: number) {
         { text: String(cappedQty), callback_data: `q:${productId}:${cappedQty}` },
         { text: '➕', callback_data: `q:${productId}:${inc}` },
       ],
+      [{ text: '🔢 Custom Quantity', callback_data: `qc:${productId}` }],
       [{ text: `${EMOJI.pay} Buy Now · ${formatPrice(total, cur)}`, callback_data: `b:${productId}:${cappedQty}` }],
       [{ text: `${EMOJI.back} Back`, callback_data: 'shop' }],
     ],
