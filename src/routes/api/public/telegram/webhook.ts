@@ -103,6 +103,15 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 }
 
+function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset: number; length: number; custom_emoji_id?: string }>) {
+  const entity = entities?.find((item) => item.type === 'custom_emoji' && item.custom_emoji_id);
+  if (!entity) return null;
+  return {
+    emoji: text.slice(entity.offset, entity.offset + entity.length),
+    id: entity.custom_emoji_id!,
+  };
+}
+
 async function sendHome(chat_id: number, firstName?: string) {
   const cfg = await getBotConfig();
   await sendMessage(chat_id, [
@@ -145,7 +154,7 @@ function adminButtonEditKeyboard(k: ButtonKey): InlineButton[][] {
   return [
     [{ text: '✏️ Edit label',  callback_data: `adm:be:${k}:label` }],
     [{ text: '😀 Edit emoji',  callback_data: `adm:be:${k}:emoji` }],
-    [{ text: '💎 Set Premium emoji ID', callback_data: `adm:be:${k}:premium` }],
+    [{ text: '💎 Set Premium emoji', callback_data: `adm:be:${k}:premium` }],
     [{ text: '🗑 Clear Premium emoji',  callback_data: `adm:be:${k}:clearpremium` }],
     [{ text: '↩️ Back', callback_data: 'adm:btns' }],
   ];
@@ -175,7 +184,7 @@ async function sendAdminButtonEdit(chat_id: number, k: ButtonKey) {
       `🔘 <b>${escapeHtml(b.label)}</b>`,
       ``,
       `Emoji preview: ${renderEmoji(b)}`,
-      `Premium emoji ID: ${premium}`,
+      `Premium emoji: ${premium}`,
       ``,
       `<i>Premium emoji IDs are sent as Telegram's button icon field on supported clients. The plain emoji stays as a fallback.</i>`,
     ].join('\n'),
@@ -287,7 +296,7 @@ async function handleAdminCallback(chat_id: number, tg: number, data: string): P
         `😀 Send the new <b>emoji</b> for the "${k}" button (one emoji character).`);
     } else if (kind === 'premium') {
       await promptFor(chat_id, tg, { action: 'edit_btn_premium', key: k },
-        `💎 Send the <b>custom_emoji_id</b> from Telegram Premium (numeric string). Forward a premium emoji to @idstickerbot to get it.`);
+        `💎 Send the <b>Premium emoji itself</b> for the "${k}" button. Do not send an ID — paste/send the animated emoji here.`);
     } else if (kind === 'clearpremium') {
       const cfg = await getBotConfig();
       cfg.buttons[k].premium_id = null;
@@ -302,9 +311,10 @@ async function handleAdminCallback(chat_id: number, tg: number, data: string): P
 }
 
 /** Returns true if the message consumed an admin-input state. */
-async function handleAdminInputText(chat_id: number, tg: number, text: string): Promise<boolean> {
+async function handleAdminInputText(chat_id: number, tg: number, msg: any): Promise<boolean> {
   const state = await getAdminState(tg);
   if (!state) return false;
+  const text: string = msg.text ?? '';
   if (text.trim() === '/cancel') {
     await clearAdminState(tg);
     await sendMessage(chat_id, '❌ Cancelled.');
@@ -323,20 +333,23 @@ async function handleAdminInputText(chat_id: number, tg: number, text: string): 
         break;
       }
       case 'edit_btn_label': cfg.buttons[state.key].label = text.trim().slice(0, 32); break;
-      case 'edit_btn_emoji': cfg.buttons[state.key].emoji = text.trim().slice(0, 8); break;
+      case 'edit_btn_emoji': {
+        const custom = firstCustomEmoji(text, msg.entities);
+        cfg.buttons[state.key].emoji = (custom?.emoji ?? text.trim()).slice(0, 8);
+        if (custom?.id) cfg.buttons[state.key].premium_id = custom.id;
+        break;
+      }
       case 'edit_btn_premium': {
-        const id = text.trim();
-        if (!/^\d+$/.test(id)) throw new Error('Premium emoji ID must be a numeric string.');
-        cfg.buttons[state.key].premium_id = id;
+        const custom = firstCustomEmoji(text, msg.entities);
+        if (!custom) throw new Error('Premium emoji send karo, ID nahi. Telegram ke emoji panel se animated premium emoji bhejo.');
+        cfg.buttons[state.key].emoji = custom.emoji;
+        cfg.buttons[state.key].premium_id = custom.id;
         break;
       }
       case 'add_emoji_map': {
-        const trimmed = text.trim();
-        const m = trimmed.match(/^(\S+)\s+(\d{5,})$/);
-        if (!m) throw new Error('Format: <emoji> <numeric_id>. Example: 💎 5368324170671202286');
-        const emoji = m[1];
-        const id = m[2];
-        cfg.emoji_map = { ...(cfg.emoji_map ?? {}), [emoji]: id };
+        const custom = firstCustomEmoji(text, msg.entities);
+        if (!custom) throw new Error('Premium emoji send karo, ID nahi. Telegram ke emoji panel se animated premium emoji bhejo.');
+        cfg.emoji_map = { ...(cfg.emoji_map ?? {}), [custom.emoji]: custom.id };
         break;
       }
     }
@@ -541,7 +554,7 @@ async function handleUpdate(update: any) {
 
     // Admin input state takes priority so free-form values don't fall through
     // to /start.
-    if (from && await handleAdminInputText(chat_id, from.id, text)) return;
+    if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
 
     if (text.startsWith('/admin')) {
       if (!from) return;
