@@ -408,7 +408,7 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 async function sendShop(chat_id: number) {
   const { data: products } = await admin()
     .from('products')
-    .select('id, slug, name, emoji, short_description, price_cents, currency, featured')
+    .select('id, slug, name, emoji, custom_emoji_id, short_description, price_cents, currency, featured')
     .eq('active', true)
     .order('featured', { ascending: false })
     .order('created_at', { ascending: false })
@@ -427,6 +427,7 @@ async function sendShop(chat_id: number) {
         ...products.map((p: any) => [{
           text: `${p.featured ? EMOJI.star + ' ' : ''}${p.emoji ? p.emoji + ' ' : ''}${p.name}  ·  ${formatPrice(p.price_cents, p.currency)}`,
           callback_data: `p:${p.id}`,
+          ...(p.custom_emoji_id ? { icon_custom_emoji_id: p.custom_emoji_id } : {}),
         }]),
         [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
       ],
@@ -434,49 +435,112 @@ async function sendShop(chat_id: number) {
   });
 }
 
-async function sendProduct(chat_id: number, productId: string) {
-  const { data: p } = await admin()
-    .from('products')
-    .select('id, name, emoji, custom_emoji_id, description, short_description, price_cents, currency, image_url')
-    .eq('id', productId)
-    .eq('active', true)
-    .maybeSingle();
+type BulkTier = { min: number; max: number | null; unitCents: number };
 
-  if (!p) {
-    await sendMessage(chat_id, `${EMOJI.cross} Product not available.`);
-    return;
+function sanitizeTiers(raw: any): BulkTier[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BulkTier[] = [];
+  for (const r of raw) {
+    if (!r) continue;
+    const min = Math.max(1, Math.floor(Number(r.min ?? 0)));
+    const maxRaw = r.max;
+    const max = maxRaw === null || maxRaw === undefined || maxRaw === '' ? null : Math.max(min, Math.floor(Number(maxRaw)));
+    const unitCents = Math.max(0, Math.floor(Number(r.unitCents ?? r.unit_cents ?? 0)));
+    if (min > 0) out.push({ min, max, unitCents });
   }
-
-  const price = formatPrice((p as any).price_cents, (p as any).currency);
-  const pe = (p as any).emoji as string | null;
-  const pid = (p as any).custom_emoji_id as string | null;
-  const emojiHtml = pe
-    ? (pid ? `<tg-emoji emoji-id="${pid}">${pe}</tg-emoji>` : pe)
-    : EMOJI.gem;
-  const text = [
-    `${emojiHtml} <b>${(p as any).name}</b>`,
-    ``,
-    (p as any).short_description ? `<i>${(p as any).short_description}</i>\n` : '',
-    (p as any).description ?? '',
-    ``,
-    `<b>Price:</b> ${price}`,
-  ].filter(Boolean).join('\n');
-
-  await sendMessage(chat_id, text, {
-    disable_web_page_preview: true,
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: `${EMOJI.pay} Buy · ${price}`, callback_data: `buy:${(p as any).id}` }],
-        [{ text: `${EMOJI.back} Back to Shop`, callback_data: 'shop' }],
-      ],
-    },
-  });
+  return out.sort((a, b) => a.min - b.min);
 }
 
-async function startCheckout(chat_id: number, telegram_id: number, productId: string) {
+function unitPriceFor(qty: number, basePrice: number, tiers: BulkTier[]): { unit: number; tier: BulkTier | null } {
+  for (const t of tiers) {
+    if (qty >= t.min && (t.max === null || qty <= t.max)) return { unit: t.unitCents, tier: t };
+  }
+  return { unit: basePrice, tier: null };
+}
+
+async function productStock(productId: string): Promise<number> {
+  const { count } = await admin().from('digital_assets')
+    .select('id', { count: 'exact', head: true })
+    .eq('product_id', productId).eq('claimed', false);
+  return count ?? 0;
+}
+
+async function renderProductCard(productId: string, qty: number) {
+  const { data: p } = await admin()
+    .from('products')
+    .select('id, name, emoji, custom_emoji_id, description, short_description, price_cents, currency, image_url, bulk_tiers')
+    .eq('id', productId).eq('active', true).maybeSingle();
+  if (!p) return null;
+  const anyP = p as any;
+  const stock = await productStock(productId);
+  const tiers = sanitizeTiers(anyP.bulk_tiers);
+  const maxSelectable = Math.max(1, Math.min(999, stock || 999));
+  const cappedQty = Math.min(Math.max(1, qty), maxSelectable);
+  const { unit, tier } = unitPriceFor(cappedQty, anyP.price_cents, tiers);
+  const total = unit * cappedQty;
+  const cur = anyP.currency as string;
+
+  const pe = anyP.emoji as string | null;
+  const pid = anyP.custom_emoji_id as string | null;
+  const emojiHtml = pe ? (pid ? `<tg-emoji emoji-id="${pid}">${pe}</tg-emoji>` : pe) : EMOJI.gem;
+
+  const lines: string[] = [
+    `📦 ${emojiHtml} <b>${anyP.name}</b>`,
+    ``,
+  ];
+  if (anyP.short_description) lines.push(`<i>${anyP.short_description}</i>`, '');
+  if (anyP.description) lines.push(anyP.description, '');
+  lines.push(
+    `💰 <b>Price:</b> ${formatPrice(unit, cur)} each`,
+    `📦 <b>In stock:</b> ${stock}`,
+    ``,
+    `🧮 <b>Selected Qty:</b> ${cappedQty}`,
+    `✏️ <b>Total:</b> ${formatPrice(total, cur)}${tier ? `  <i>(bulk tier)</i>` : ''}`,
+  );
+
+  if (tiers.length > 0) {
+    lines.push('', `📊 <b>Bulk Discounts</b>`);
+    for (const t of tiers) {
+      const range = t.max === null ? `${t.min}+` : `${t.min}-${t.max}`;
+      const active = cappedQty >= t.min && (t.max === null || cappedQty <= t.max);
+      lines.push(`${active ? '✅' : '•'} ${range} → ${formatPrice(t.unitCents, cur)} each`);
+    }
+  }
+
+  const dec = Math.max(1, cappedQty - 1);
+  const inc = Math.min(maxSelectable, cappedQty + 1);
+  const reply_markup = {
+    inline_keyboard: [
+      [
+        { text: '➖', callback_data: `q:${productId}:${dec}` },
+        { text: String(cappedQty), callback_data: `q:${productId}:${cappedQty}` },
+        { text: '➕', callback_data: `q:${productId}:${inc}` },
+      ],
+      [{ text: `${EMOJI.pay} Buy Now · ${formatPrice(total, cur)}`, callback_data: `b:${productId}:${cappedQty}` }],
+      [{ text: `${EMOJI.back} Back`, callback_data: 'shop' }],
+    ],
+  };
+  return { text: lines.join('\n'), reply_markup, outOfStock: stock <= 0 };
+}
+
+async function sendProduct(chat_id: number, productId: string) {
+  const card = await renderProductCard(productId, 1);
+  if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return; }
+  await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
+}
+
+async function updateProductQty(chat_id: number, message_id: number, productId: string, qty: number) {
+  const card = await renderProductCard(productId, qty);
+  if (!card) return;
+  try {
+    await editMessageText(chat_id, message_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
+  } catch { /* same content — ignore */ }
+}
+
+async function startCheckout(chat_id: number, telegram_id: number, productId: string, qty = 1) {
   const { data: product } = await admin()
     .from('products')
-    .select('id, name, price_cents, currency')
+    .select('id, name, price_cents, currency, bulk_tiers')
     .eq('id', productId)
     .eq('active', true)
     .maybeSingle();
@@ -486,12 +550,21 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
   }
 
   const p = product as any;
+  const stock = await productStock(productId);
+  const q = Math.max(1, Math.min(qty, Math.max(1, stock || 999)));
+  if (stock > 0 && q > stock) {
+    await sendMessage(chat_id, `${EMOJI.cross} Only ${stock} in stock.`);
+    return;
+  }
+  const tiers = sanitizeTiers(p.bulk_tiers);
+  const { unit } = unitPriceFor(q, p.price_cents, tiers);
+  const total = unit * q;
   const { data: order, error } = await admin()
     .from('orders')
     .insert({
       telegram_id, chat_id,
       status: 'pending',
-      total_cents: p.price_cents,
+      total_cents: total,
       currency: p.currency,
     })
     .select('id')
@@ -503,8 +576,8 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
   await admin().from('order_items').insert({
     order_id: (order as any).id,
     product_id: p.id,
-    quantity: 1,
-    unit_price_cents: p.price_cents,
+    quantity: q,
+    unit_price_cents: unit,
     product_name_snapshot: p.name,
   });
 
@@ -512,14 +585,15 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
   await sendMessage(chat_id, [
     `${EMOJI.lock} <b>Secure Checkout</b>`,
     ``,
-    `<b>${p.name}</b>`,
-    `Total: <b>${formatPrice(p.price_cents, p.currency)}</b>`,
+    `<b>${p.name}</b> × ${q}`,
+    `Unit: ${formatPrice(unit, p.currency)}`,
+    `Total: <b>${formatPrice(total, p.currency)}</b>`,
     ``,
     `Tap below to complete your payment. Your license will be delivered here automatically.`,
   ].join('\n'), {
     reply_markup: {
       inline_keyboard: [
-        [{ text: `${EMOJI.pay} Pay ${formatPrice(p.price_cents, p.currency)}`, url: payUrl }],
+        [{ text: `${EMOJI.pay} Pay ${formatPrice(total, p.currency)}`, url: payUrl }],
         [{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }],
       ],
     },
@@ -655,7 +729,16 @@ async function handleUpdate(update: any) {
       }
       else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} No announcements yet.`);
       else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2));
-      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4));
+      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4), 1);
+      else if (data.startsWith('q:')) {
+        const [, pid, n] = data.split(':');
+        const message_id = (cq as any).message?.message_id;
+        if (message_id && pid) await updateProductQty(chat_id, message_id, pid, Math.max(1, parseInt(n) || 1));
+      }
+      else if (data.startsWith('b:')) {
+        const [, pid, n] = data.split(':');
+        if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
+      }
     } finally {
       await answerCallbackQuery(cq.id).catch(() => {});
     }

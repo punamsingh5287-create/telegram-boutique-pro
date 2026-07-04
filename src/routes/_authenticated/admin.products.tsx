@@ -24,7 +24,7 @@ function money(c: number, cur: string) {
 const empty = {
   slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
   priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "license_key",
-  active: true, featured: false,
+  active: true, featured: false, bulkTiers: [] as Array<{ min: number; max: number | null; unitCents: number }>,
 };
 
 const btnPrimary = "btn-premium";
@@ -239,6 +239,11 @@ function ProductSheet({
           {(initial as any).id && (
             <LicenseKeysSection productId={(initial as any).id} />
           )}
+          <BulkTiersEditor
+            currency={form.currency}
+            tiers={form.bulkTiers ?? []}
+            onChange={(tiers) => setForm({ ...form, bulkTiers: tiers })}
+          />
           <div className="flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
             <label className="flex cursor-pointer items-center gap-2">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> <TgEmoji>✅</TgEmoji> Active
@@ -272,6 +277,81 @@ function Field({ label, hint, children }: { label: React.ReactNode; hint?: strin
 }
 
 function LicenseKeysSection({ productId }: { productId: string }) {
+  return LicenseKeysSectionImpl({ productId });
+}
+
+type Tier = { min: number; max: number | null; unitCents: number };
+
+const PRESET_TIERS: Tier[] = [
+  { min: 1,   max: 9,    unitCents: 110 },
+  { min: 10,  max: 19,   unitCents: 100 },
+  { min: 20,  max: 49,   unitCents: 90  },
+  { min: 50,  max: 99,   unitCents: 80  },
+  { min: 100, max: 199,  unitCents: 70  },
+  { min: 200, max: 299,  unitCents: 65  },
+  { min: 300, max: null, unitCents: 60  },
+];
+
+function BulkTiersEditor({
+  currency, tiers, onChange,
+}: {
+  currency: string;
+  tiers: Tier[];
+  onChange: (t: Tier[]) => void;
+}) {
+  const update = (i: number, patch: Partial<Tier>) => {
+    const next = tiers.slice();
+    next[i] = { ...next[i], ...patch } as Tier;
+    onChange(next);
+  };
+  const remove = (i: number) => onChange(tiers.filter((_, idx) => idx !== i));
+  const add = () => {
+    const last = tiers[tiers.length - 1];
+    const start = last ? (last.max ?? last.min) + 1 : 1;
+    onChange([...tiers, { min: start, max: null, unitCents: 100 }]);
+  };
+  return (
+    <div className="rounded-lg border bg-gradient-to-br from-fuchsia-500/5 to-cyan-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold flex items-center gap-1">
+          <TgEmoji>📊</TgEmoji> Bulk discount tiers
+        </span>
+        {tiers.length === 0 && (
+          <button type="button" onClick={() => onChange(PRESET_TIERS)} className="text-[11px] underline text-fuchsia-500">
+            Load recommended
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Auto-applied at checkout by quantity. Leave empty to use flat product price. Max blank = "and above".
+      </p>
+      {tiers.length > 0 && (
+        <div className="space-y-2">
+          {tiers.map((t, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+              <input type="number" min={1} value={t.min}
+                onChange={(e) => update(i, { min: Math.max(1, parseInt(e.target.value) || 1) })}
+                placeholder="Min" className={inputCls + " text-xs"} />
+              <input type="number" min={t.min} value={t.max ?? ""}
+                onChange={(e) => update(i, { max: e.target.value === "" ? null : parseInt(e.target.value) })}
+                placeholder="Max (∞)" className={inputCls + " text-xs"} />
+              <input type="number" min={0} step="0.01" value={(t.unitCents / 100).toString()}
+                onChange={(e) => update(i, { unitCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+                placeholder="Price" className={inputCls + " text-xs"} />
+              <button type="button" onClick={() => remove(i)} className="text-red-500 text-xs px-2">✕</button>
+            </div>
+          ))}
+          <div className="text-[10px] text-muted-foreground">Unit price in {currency}. First matching tier wins.</div>
+        </div>
+      )}
+      <button type="button" onClick={add} className="btn-ghost-color w-full py-1.5 text-xs">
+        <TgEmoji>➕</TgEmoji> Add tier
+      </button>
+    </div>
+  );
+}
+
+function LicenseKeysSectionImpl({ productId }: { productId: string }) {
   const qc = useQueryClient();
   const [keys, setKeys] = useState("");
   const { data: stock, refetch } = useQuery({
