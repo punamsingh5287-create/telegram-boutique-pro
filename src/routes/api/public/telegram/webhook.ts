@@ -769,6 +769,7 @@ async function handleUpdate(update: any) {
     // Admin input state takes priority so free-form values don't fall through
     // to /start.
     if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
+    if (from && await handlePendingQty(chat_id, from.id, text)) return;
 
     if (text.startsWith('/admin')) {
       await userUpsert;
@@ -838,6 +839,10 @@ async function handleUpdate(update: any) {
         const [, pid, n] = data.split(':');
         const message_id = (cq as any).message?.message_id;
         if (message_id && pid) await updateProductQty(chat_id, message_id, pid, Math.max(1, parseInt(n) || 1));
+      }
+      else if (data.startsWith('qc:')) {
+        const pid = data.slice(3);
+        if (pid && from) await promptCustomQty(chat_id, from.id, pid);
       }
       else if (data.startsWith('b:')) {
         const [, pid, n] = data.split(':');
