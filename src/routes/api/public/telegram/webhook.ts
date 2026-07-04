@@ -398,8 +398,8 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
-  // Fire-and-forget emoji flash — do not block the shop menu render.
-  void flashShopPopup(chat_id);
+  // Flash the configured pop-up custom emoji for ~3s, then continue.
+  await flashShopPopup(chat_id);
 
   const { data: products } = await admin()
     .from('products')
