@@ -195,8 +195,11 @@ export type Database = {
           created_at: string
           currency: string
           delivered_at: string | null
+          delivery_attempts: number
           environment: string
           id: string
+          last_delivery_error: string | null
+          notified_at: string | null
           paid_at: string | null
           status: string
           stripe_payment_intent_id: string | null
@@ -209,8 +212,11 @@ export type Database = {
           created_at?: string
           currency?: string
           delivered_at?: string | null
+          delivery_attempts?: number
           environment?: string
           id?: string
+          last_delivery_error?: string | null
+          notified_at?: string | null
           paid_at?: string | null
           status?: string
           stripe_payment_intent_id?: string | null
@@ -223,8 +229,11 @@ export type Database = {
           created_at?: string
           currency?: string
           delivered_at?: string | null
+          delivery_attempts?: number
           environment?: string
           id?: string
+          last_delivery_error?: string | null
+          notified_at?: string | null
           paid_at?: string | null
           status?: string
           stripe_payment_intent_id?: string | null
