@@ -128,23 +128,35 @@ async function verifyEvm(kind: "bep20" | "erc20", txHash: string, expectedUsdt: 
   const contract = kind === "bep20" ? USDT_BEP20 : USDT_ERC20;
   const key = kind === "bep20" ? cfg.crypto_bep20.api_key : cfg.crypto_erc20.api_key;
   const addr = kind === "bep20" ? cfg.crypto_bep20.address : cfg.crypto_erc20.address;
-  if (!key) return { ok: false, provider: kind, reason: `Missing ${kind === "bep20" ? "BscScan" : "Etherscan"} API key` };
+  const scanName = kind === "bep20" ? "BscScan" : "Etherscan";
+  if (!key) return { ok: false, provider: kind, reason: `${scanName} API key set nahi hai (Admin → Payment Config me daaliye).` };
   const url = `${api}?module=account&action=tokentx&contractaddress=${contract}&address=${addr}&page=1&offset=100&sort=desc&apikey=${key}`;
   const res = await fetch(url);
-  if (!res.ok) return { ok: false, provider: kind, reason: `${kind} ${res.status}` };
+  if (!res.ok) return { ok: false, provider: kind, reason: `${scanName} HTTP ${res.status}` };
   const data: any = await res.json();
-  if (data.status !== "1" || !Array.isArray(data.result)) return { ok: false, provider: kind, reason: data.message || "no txs" };
+  if (data.status !== "1" || !Array.isArray(data.result)) {
+    const raw = String(data?.message || data?.result || "unknown");
+    let hint = "";
+    if (/NOTOK|invalid.*key|missing.*key/i.test(raw)) {
+      hint = ` — ${scanName} key invalid/missing hai. Admin panel me sahi ${scanName} API key daaliye (free: ${kind === "bep20" ? "bscscan.com/myapikey" : "etherscan.io/myapikey"}).`;
+    } else if (/rate.*limit|max rate/i.test(raw)) {
+      hint = " — rate limit. 10 second wait karke wapas try kariye.";
+    } else if (/no transactions/i.test(raw)) {
+      hint = " — is wallet par abhi tak koi USDT transfer nahi aaya. Aapne sahi network aur address par bheja hai kya?";
+    }
+    return { ok: false, provider: kind, reason: `${scanName}: ${raw}${hint}` };
+  }
   const target = data.result.find((t: any) => String(t.hash).toLowerCase() === txHash.toLowerCase());
-  if (!target) return { ok: false, provider: kind, reason: "Tx hash not found in recent transfers" };
-  if (String(target.to).toLowerCase() !== addr.toLowerCase()) return { ok: false, provider: kind, reason: "Transfer not to our wallet" };
+  if (!target) return { ok: false, provider: kind, reason: `Ye tx hash humare wallet ke last 100 USDT transfers me nahi mila. Confirm kariye: (a) network ${kind.toUpperCase()} sahi hai, (b) aapne humare address par bheja hai, (c) tx confirm ho chuki hai.` };
+  if (String(target.to).toLowerCase() !== addr.toLowerCase()) return { ok: false, provider: kind, reason: "Ye transfer humare wallet par nahi aaya — dusre address par gaya hai." };
   const decimals = Number(target.tokenDecimal ?? 18);
   const amount = Number(target.value) / 10 ** decimals;
   if (!withinTolerance(amount, expectedUsdt, cfg.amount_tolerance_pct || 2)) {
-    return { ok: false, provider: kind, reason: `Amount ${amount} != ${expectedUsdt}` };
+    return { ok: false, provider: kind, reason: `Amount mismatch: aapne ${amount} USDT bheja, expected ${expectedUsdt.toFixed(2)} USDT. Exact amount bhejiye.` };
   }
   const confs = Number(target.confirmations ?? 0);
   const need = kind === "bep20" ? cfg.crypto_bep20.min_confirmations : cfg.crypto_erc20.min_confirmations;
-  if (confs < (need || 0)) return { ok: false, provider: kind, reason: `Only ${confs} confirmations, need ${need}` };
+  if (confs < (need || 0)) return { ok: false, provider: kind, reason: `Sirf ${confs} confirmations mile, ${need} chahiye. 1-2 minute wait kariye.` };
   return { ok: true, provider: kind, payload: { hash: txHash, amount, confs } };
 }
 
