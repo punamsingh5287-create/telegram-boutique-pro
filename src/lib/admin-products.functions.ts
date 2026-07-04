@@ -144,3 +144,36 @@ export const deleteProduct = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export const getProductStock = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { productId: string }) => data)
+  .handler(async ({ data, context }): Promise<{ available: number; claimed: number } | { error: string }> => {
+    if (!(await ensureAdmin(context))) return { error: "Forbidden" };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ count: available }, { count: claimed }] = await Promise.all([
+      supabaseAdmin.from("digital_assets").select("id", { count: "exact", head: true }).eq("product_id", data.productId).eq("claimed", false),
+      supabaseAdmin.from("digital_assets").select("id", { count: "exact", head: true }).eq("product_id", data.productId).eq("claimed", true),
+    ]);
+    return { available: available ?? 0, claimed: claimed ?? 0 };
+  });
+
+export const addDigitalAssets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { productId: string; payloads: string[] }) => data)
+  .handler(async ({ data, context }): Promise<{ ok: true; inserted: number } | { ok: false; error: string }> => {
+    if (!(await ensureAdmin(context))) return { ok: false, error: "Forbidden" };
+    const lines = (data.payloads || []).map((s) => s.trim()).filter((s) => s.length > 0).slice(0, 5000);
+    if (!lines.length) return { ok: false, error: "No keys provided" };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const rows = lines.map((payload) => ({ product_id: data.productId, payload }));
+    const { error } = await supabaseAdmin.from("digital_assets").insert(rows);
+    if (error) return { ok: false, error: error.message };
+    await supabaseAdmin.from("admin_audit_log").insert({
+      action: "digital_assets.added",
+      actor_user_id: context.userId,
+      success: true,
+      context: { product_id: data.productId, count: lines.length },
+    });
+    return { ok: true, inserted: lines.length };
+  });
