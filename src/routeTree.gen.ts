@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PayOrderIdRouteImport } from './routes/pay.$orderId'
 import { Route as CheckoutReturnRouteImport } from './routes/checkout.return'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminDeliveriesRouteImport } from './routes/_authenticated/admin.deliveries'
 import { Route as AuthenticatedAdminAuditLogRouteImport } from './routes/_authenticated/admin.audit-log'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
@@ -43,17 +44,22 @@ const CheckoutReturnRoute = CheckoutReturnRouteImport.update({
   path: '/checkout/return',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminDeliveriesRoute =
   AuthenticatedAdminDeliveriesRouteImport.update({
-    id: '/admin/deliveries',
-    path: '/admin/deliveries',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/deliveries',
+    path: '/deliveries',
+    getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminAuditLogRoute =
   AuthenticatedAdminAuditLogRouteImport.update({
-    id: '/admin/audit-log',
-    path: '/admin/audit-log',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/audit-log',
+    path: '/audit-log',
+    getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const ApiPublicTelegramWebhookRoute =
   ApiPublicTelegramWebhookRouteImport.update({
@@ -71,6 +77,7 @@ const ApiPublicPaymentsWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/_authenticated/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/admin'
     | '/checkout/return'
     | '/pay/$orderId'
     | '/admin/audit-log'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/admin'
     | '/checkout/return'
     | '/pay/$orderId'
     | '/admin/audit-log'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/admin'
     | '/checkout/return'
     | '/pay/$orderId'
     | '/_authenticated/admin/audit-log'
@@ -181,19 +193,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/deliveries': {
       id: '/_authenticated/admin/deliveries'
-      path: '/admin/deliveries'
+      path: '/deliveries'
       fullPath: '/admin/deliveries'
       preLoaderRoute: typeof AuthenticatedAdminDeliveriesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/audit-log': {
       id: '/_authenticated/admin/audit-log'
-      path: '/admin/audit-log'
+      path: '/audit-log'
       fullPath: '/admin/audit-log'
       preLoaderRoute: typeof AuthenticatedAdminAuditLogRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/api/public/telegram/webhook': {
       id: '/api/public/telegram/webhook'
@@ -212,14 +231,25 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedRouteRouteChildren {
+interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditLogRoute: typeof AuthenticatedAdminAuditLogRoute
   AuthenticatedAdminDeliveriesRoute: typeof AuthenticatedAdminDeliveriesRoute
 }
 
-const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditLogRoute: AuthenticatedAdminAuditLogRoute,
   AuthenticatedAdminDeliveriesRoute: AuthenticatedAdminDeliveriesRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =
