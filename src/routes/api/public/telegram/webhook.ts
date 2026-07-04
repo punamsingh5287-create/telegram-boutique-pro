@@ -1045,6 +1045,13 @@ async function handleUpdate(update: any) {
         const [, method, orderId] = data.split(':');
         if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId, lang);
       }
+      else if (data.startsWith('bnv:')) {
+        const orderId = data.slice('bnv:'.length);
+        if (orderId) {
+          const res = await verifyBinanceForOrder(orderId);
+          await sendMessage(chat_id, (res.ok ? `${EMOJI.check} ` : `${EMOJI.clock} `) + res.message);
+        }
+      }
       else if (data.startsWith('pm_back:')) {
         const orderId = data.slice('pm_back:'.length);
         const { data: o } = await admin().from('orders').select('id,total_cents,currency,order_items(product_name_snapshot,quantity,unit_price_cents)').eq('id', orderId).maybeSingle();
