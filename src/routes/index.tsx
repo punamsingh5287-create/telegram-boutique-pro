@@ -65,7 +65,7 @@ function Index() {
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a
-              href="https://t.me/"
+              href="https://t.me/Mateotrussttbot"
               target="_blank"
               rel="noreferrer"
               className="group inline-flex items-center gap-2 rounded-full bg-gradient-royal px-8 py-4 text-base font-medium text-primary-foreground shadow-royal transition-transform hover:scale-[1.03]"
