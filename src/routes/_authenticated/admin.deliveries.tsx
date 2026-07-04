@@ -2,7 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState } from "react";
-import { listFailedDeliveries, resendOrderDelivery, type FailedDelivery } from "@/lib/orders.functions";
+import {
+  listFailedDeliveries,
+  resendOrderDelivery,
+  bulkResendOrderDeliveries,
+  type FailedDelivery,
+} from "@/lib/orders.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/deliveries")({
   head: () => ({
@@ -30,6 +35,20 @@ function AdminDeliveriesPage() {
   });
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const selectableIds = (data ?? []).filter((o) => o.chatId).map((o) => o.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(selectableIds));
+
   const resend = useMutation({
     mutationFn: async (orderId: string) => {
       setBusyId(orderId);
@@ -43,6 +62,24 @@ function AdminDeliveriesPage() {
     },
     onError: (err: Error) => toast.error(err.message || "Resend failed"),
     onSettled: () => setBusyId(null),
+  });
+
+  const bulkResend = useMutation({
+    mutationFn: async (orderIds: string[]) => {
+      const res = await bulkResendOrderDeliveries({ data: { orderIds } });
+      if (!res.ok) throw new Error(res.error);
+      return res.results;
+    },
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.ok).length;
+      const failed = results.length - ok;
+      if (failed === 0) toast.success(`Resent ${ok} deliver${ok === 1 ? "y" : "ies"}`);
+      else if (ok === 0) toast.error(`All ${failed} resend${failed === 1 ? "" : "s"} failed`);
+      else toast.warning(`${ok} sent · ${failed} failed`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["admin", "failed-deliveries"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Bulk resend failed"),
   });
 
   return (
@@ -65,6 +102,31 @@ function AdminDeliveriesPage() {
           </button>
         </div>
 
+        {data && data.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                disabled={selectableIds.length === 0}
+                className="h-4 w-4 rounded border-white/20 bg-transparent"
+              />
+              Select all deliverable ({selectableIds.length})
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+              <button
+                onClick={() => bulkResend.mutate(Array.from(selected))}
+                disabled={selected.size === 0 || bulkResend.isPending}
+                className="rounded-lg bg-gradient-royal px-4 py-2 text-sm font-medium text-primary-foreground shadow-royal disabled:opacity-60"
+              >
+                {bulkResend.isPending ? "Resending…" : `Resend selected`}
+              </button>
+            </div>
+          </div>
+        )}
+
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
         {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
 
@@ -80,7 +142,16 @@ function AdminDeliveriesPage() {
             {data.map((o: FailedDelivery) => (
               <li key={o.id} className="glass rounded-2xl p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(o.id)}
+                      onChange={() => toggle(o.id)}
+                      disabled={!o.chatId || bulkResend.isPending}
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
+                      aria-label={`Select order ${o.shortId}`}
+                    />
+                    <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-muted-foreground">
                         #{o.shortId}
@@ -97,10 +168,11 @@ function AdminDeliveriesPage() {
                     {o.lastError && (
                       <p className="mt-2 break-words text-xs text-destructive">{o.lastError}</p>
                     )}
+                    </div>
                   </div>
                   <button
                     onClick={() => resend.mutate(o.id)}
-                    disabled={busyId === o.id || !o.chatId}
+                    disabled={busyId === o.id || !o.chatId || bulkResend.isPending}
                     className="shrink-0 rounded-lg bg-gradient-royal px-4 py-2 text-sm font-medium text-primary-foreground shadow-royal disabled:opacity-60"
                   >
                     {busyId === o.id ? "Resending…" : "Resend delivery"}
