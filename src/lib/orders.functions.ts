@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -111,4 +112,71 @@ export const createOrderCheckoutSession = createServerFn({ method: "POST" })
     } catch (err) {
       return { error: getStripeErrorMessage(err) };
     }
+  });
+
+export type FailedDelivery = {
+  id: string;
+  shortId: string;
+  chatId: number | null;
+  totalCents: number;
+  currency: string;
+  paidAt: string | null;
+  deliveryAttempts: number;
+  lastError: string | null;
+  itemCount: number;
+};
+
+export const listFailedDeliveries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ orders: FailedDelivery[] } | { error: string }> => {
+    const { data: isAdmin } = await (context.supabase as any).rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) return { error: "Forbidden" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("orders")
+      .select("id,chat_id,total_cents,currency,paid_at,delivery_attempts,last_delivery_error,deliveries(id)")
+      .not("last_delivery_error", "is", null)
+      .in("status", ["paid"])
+      .order("paid_at", { ascending: false })
+      .limit(100);
+    if (error) return { error: error.message };
+
+    return {
+      orders: (data ?? []).map((o: any) => ({
+        id: o.id,
+        shortId: o.id.slice(0, 8),
+        chatId: o.chat_id,
+        totalCents: o.total_cents,
+        currency: o.currency,
+        paidAt: o.paid_at,
+        deliveryAttempts: o.delivery_attempts ?? 0,
+        lastError: o.last_delivery_error,
+        itemCount: o.deliveries?.length ?? 0,
+      })),
+    };
+  });
+
+const UUID_ONLY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const resendOrderDelivery = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { orderId: string }) => {
+    if (!UUID_ONLY.test(data.orderId)) throw new Error("Invalid order id");
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; attempts: number } | { ok: false; error: string }> => {
+    const { data: isAdmin } = await (context.supabase as any).rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) return { ok: false, error: "Forbidden" };
+
+    const { sendOrderDeliveryDM } = await import("@/lib/delivery.server");
+    const result = await sendOrderDeliveryDM(data.orderId);
+    if (result.ok) return { ok: true, attempts: result.attempts };
+    return { ok: false, error: result.error };
   });
