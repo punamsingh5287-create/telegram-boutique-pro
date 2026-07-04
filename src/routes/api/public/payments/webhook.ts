@@ -2,6 +2,47 @@ import { createFileRoute } from "@tanstack/react-router";
 import { verifyStripeWebhook, type StripeEnv } from "@/lib/stripe.server";
 import { sendMessage, formatPrice, EMOJI } from "@/lib/telegram.server";
 
+const MAX_DM_ATTEMPTS = 4;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// Retry Telegram sendMessage with capped exponential backoff. Skips retry
+// on permanent 4xx conditions (bot blocked, chat not found, invalid input)
+// since retrying those never succeeds.
+async function sendWithRetry(
+  chatId: number | string,
+  text: string,
+): Promise<{ ok: true } | { ok: false; error: string; permanent: boolean; attempts: number }> {
+  let lastError = "unknown error";
+  for (let attempt = 1; attempt <= MAX_DM_ATTEMPTS; attempt++) {
+    try {
+      await sendMessage(chatId, text, { disable_web_page_preview: true });
+      return { ok: true };
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+      const permanent = /chat not found|bot was blocked|user is deactivated|Forbidden|bad request/i.test(lastError);
+      if (permanent || attempt === MAX_DM_ATTEMPTS) {
+        return { ok: false, error: lastError, permanent, attempts: attempt };
+      }
+      // 400ms, 800ms, 1600ms
+      await sleep(400 * 2 ** (attempt - 1));
+    }
+  }
+  return { ok: false, error: lastError, permanent: false, attempts: MAX_DM_ATTEMPTS };
+}
+
+async function notifyAdmin(text: string) {
+  const adminId = process.env.ADMIN_TELEGRAM_ID;
+  if (!adminId) return;
+  try {
+    await sendMessage(adminId, text, { disable_web_page_preview: true });
+  } catch (e) {
+    console.error("Admin notify failed:", e);
+  }
+}
+
 async function claimDeliveries(orderId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -48,23 +89,73 @@ async function claimDeliveries(orderId: string) {
     }
   }
 
+  // License keys are already persisted in `deliveries` above, so keys are
+  // never lost even if the DM fails permanently. `delivered` = DM confirmed;
+  // `paid` + non-null last_delivery_error = keys claimed, DM pending.
+  const shortId = order.id.slice(0, 8);
+  const text =
+    `${EMOJI.check} <b>Payment received — Mateo Store</b>\n` +
+    `Order <code>${shortId}</code> · ${formatPrice(order.total_cents, order.currency)}\n\n` +
+    deliveryLines.join("\n\n") +
+    `\n\nThanks for your purchase.`;
+
+  if (!order.chat_id || !deliveryLines.length) {
+    await supabaseAdmin
+      .from("orders")
+      .update({
+        status: "paid",
+        last_delivery_error: !order.chat_id ? "No chat_id on order" : "No deliverable items",
+      })
+      .eq("id", order.id);
+    await notifyAdmin(
+      `${EMOJI.cross} <b>Delivery blocked</b>\nOrder <code>${shortId}</code> — ${
+        !order.chat_id ? "no chat_id" : "no deliverable items"
+      }`,
+    );
+    return;
+  }
+
+  const result = await sendWithRetry(order.chat_id, text);
+
+  if (result.ok) {
+    await supabaseAdmin
+      .from("orders")
+      .update({
+        status: "delivered",
+        delivered_at: new Date().toISOString(),
+        notified_at: new Date().toISOString(),
+        last_delivery_error: null,
+      })
+      .eq("id", order.id);
+    return;
+  }
+
+  // DM failed after retries — keep status='paid' so an admin can retry
+  // without re-claiming already-issued keys. Log the failure and ping admin.
+  const { data: current } = await supabaseAdmin
+    .from("orders")
+    .select("delivery_attempts")
+    .eq("id", order.id)
+    .maybeSingle();
+  const priorAttempts = current?.delivery_attempts ?? 0;
+
   await supabaseAdmin
     .from("orders")
-    .update({ status: "delivered", delivered_at: new Date().toISOString() })
+    .update({
+      status: "paid",
+      delivery_attempts: priorAttempts + result.attempts,
+      last_delivery_error: result.error.slice(0, 500),
+    })
     .eq("id", order.id);
 
-  if (order.chat_id && deliveryLines.length) {
-    const text =
-      `${EMOJI.check} <b>Payment received — Mateo Store</b>\n` +
-      `Order <code>${order.id.slice(0, 8)}</code> · ${formatPrice(order.total_cents, order.currency)}\n\n` +
-      deliveryLines.join("\n\n") +
-      `\n\nThanks for your purchase.`;
-    try {
-      await sendMessage(order.chat_id, text, { disable_web_page_preview: true });
-    } catch (e) {
-      console.error("Telegram delivery send failed", e);
-    }
-  }
+  console.error(`Telegram delivery failed for order ${shortId} (permanent=${result.permanent}):`, result.error);
+  await notifyAdmin(
+    `${EMOJI.cross} <b>Telegram delivery failed</b>\n` +
+      `Order <code>${shortId}</code> · chat <code>${order.chat_id}</code>\n` +
+      `Attempts: ${result.attempts} · Permanent: ${result.permanent ? "yes" : "no"}\n` +
+      `Error: ${result.error.slice(0, 300)}\n\n` +
+      `Keys are stored in <b>deliveries</b> and can be resent from the admin dashboard.`,
+  );
 }
 
 async function handleCheckoutCompleted(session: any) {
