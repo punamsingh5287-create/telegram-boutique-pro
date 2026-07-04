@@ -23,7 +23,7 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
       attempts: entry.attempts ?? null,
       error: entry.error ? entry.error.slice(0, 2000) : null,
       permanent: entry.permanent ?? null,
-      context: entry.context ?? {},
+      context: (entry.context ?? {}) as any,
     });
   } catch (e) {
     console.error("Audit log write failed:", e);
