@@ -67,11 +67,17 @@ async function upsertTelegramUser(u: {
 
 function homeKeyboard(cfg: BotConfig): InlineButton[][] {
   const b = cfg.buttons;
+  const mk = (key: ButtonKey, cb: string): InlineButton => {
+    const btn = b[key];
+    const out: InlineButton = { text: renderButtonText(btn), callback_data: cb };
+    if (btn?.style) out.style = btn.style;
+    return out;
+  };
   return [
-    [{ text: renderButtonText(b.shop), callback_data: 'shop' },     { text: renderButtonText(b.trending), callback_data: 'trending' }],
-    [{ text: renderButtonText(b.orders), callback_data: 'orders' }, { text: renderButtonText(b.products), callback_data: 'products' }],
-    [{ text: renderButtonText(b.coupons), callback_data: 'coupons' },{ text: renderButtonText(b.profile), callback_data: 'profile' }],
-    [{ text: renderButtonText(b.support), callback_data: 'support' },{ text: renderButtonText(b.news), callback_data: 'news' }],
+    [mk('shop', 'shop'),         mk('trending', 'trending')],
+    [mk('orders', 'orders'),     mk('products', 'products')],
+    [mk('coupons', 'coupons'),   mk('profile', 'profile')],
+    [mk('support', 'support'),   mk('news', 'news')],
   ];
 }
 
