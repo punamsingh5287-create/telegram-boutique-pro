@@ -10,6 +10,8 @@ import {
   ScrollText,
   Settings,
   Bot,
+  CreditCard,
+  Sparkles,
   LogOut,
 } from "lucide-react";
 import {
@@ -40,6 +42,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     label: "💰 Sales",
     items: [
       { title: "Orders", url: "/admin/orders", icon: ShoppingCart, emoji: "🛒" },
+      { title: "Payments", url: "/admin/payments", icon: CreditCard, emoji: "💳" },
       { title: "Deliveries", url: "/admin/deliveries", icon: Truck, emoji: "🚚" },
     ],
   },
@@ -56,6 +59,7 @@ const groups: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "Coupons", url: "/admin/coupons", icon: Tags, emoji: "🎟️" },
       { title: "Broadcasts", url: "/admin/broadcasts", icon: Megaphone, emoji: "📢" },
+      { title: "Fake ads", url: "/admin/fake-broadcast", icon: Sparkles, emoji: "✨" },
     ],
   },
   {
