@@ -173,7 +173,12 @@ function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset:
 
 async function sendHome(chat_id: number, firstName?: string, lang: Lang = 'en') {
   const cfg = await getBotConfig();
-  const text = lang === 'en' ? welcomeText(cfg, firstName) : welcomeFallback(lang, firstName);
+  // Admin's custom welcome_text is preserved across all languages so the
+  // brand message stays consistent when the buyer switches language. Only
+  // buttons/labels translate. `welcomeFallback` is kept as a safety net if
+  // the admin ever leaves welcome_text blank.
+  const custom = (cfg.welcome_text || '').trim();
+  const text = custom ? welcomeText(cfg, firstName) : welcomeFallback(lang, firstName);
   const reply_markup = { inline_keyboard: homeKeyboard(cfg, lang) };
   if (cfg.welcome_image_url) {
     try {
