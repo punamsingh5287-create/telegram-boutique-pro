@@ -70,11 +70,41 @@ async function upsertTelegramUser(u: {
       username: u.username ?? null,
       first_name: u.first_name ?? null,
       last_name: u.last_name ?? null,
-      language_code: u.language_code ?? null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'telegram_id' },
   );
+}
+
+// ────────────────────────────────────────────────────────────────
+// Language (per-user, stored in telegram_users.language_code)
+// ────────────────────────────────────────────────────────────────
+type Lang = 'en' | 'hi';
+async function getUserLang(telegram_id: number): Promise<Lang> {
+  const { data } = await admin()
+    .from('telegram_users')
+    .select('language_code')
+    .eq('telegram_id', telegram_id)
+    .maybeSingle();
+  return ((data as any)?.language_code === 'hi' ? 'hi' : 'en');
+}
+async function setUserLang(telegram_id: number, lang: Lang) {
+  await admin().from('telegram_users').update({ language_code: lang }).eq('telegram_id', telegram_id);
+}
+const LANG_LABEL: Record<Lang, string> = { en: 'English', hi: 'हिन्दी' };
+function langSavedText(lang: Lang): string {
+  return lang === 'hi'
+    ? '✅ भाषा सेट हो गई: <b>हिन्दी</b>'
+    : '✅ Language set to <b>English</b>';
+}
+function langChooserKeyboard(): InlineButton[][] {
+  return [
+    [
+      { text: '🇬🇧 English', callback_data: 'lang:en' },
+      { text: '🇮🇳 हिन्दी',  callback_data: 'lang:hi' },
+    ],
+    [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
+  ];
 }
 
 function homeKeyboard(cfg: BotConfig): InlineButton[][] {
@@ -90,6 +120,7 @@ function homeKeyboard(cfg: BotConfig): InlineButton[][] {
     [mk('orders', 'orders'),     mk('products', 'products')],
     [mk('coupons', 'coupons'),   mk('profile', 'profile')],
     [mk('support', 'support'),   mk('news', 'news')],
+    [{ text: '🌐 Language / भाषा', callback_data: 'lang' }],
   ];
 }
 
