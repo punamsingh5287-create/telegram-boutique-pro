@@ -437,6 +437,16 @@ async function sendShop(chat_id: number) {
 
 type BulkTier = { min: number; max: number | null; unitCents: number };
 
+const DEFAULT_BULK_TIERS: BulkTier[] = [
+  { min: 1, max: 9, unitCents: 110 },
+  { min: 10, max: 19, unitCents: 100 },
+  { min: 20, max: 49, unitCents: 90 },
+  { min: 50, max: 99, unitCents: 80 },
+  { min: 100, max: 199, unitCents: 70 },
+  { min: 200, max: 299, unitCents: 65 },
+  { min: 300, max: null, unitCents: 60 },
+];
+
 function sanitizeTiers(raw: any): BulkTier[] {
   if (!Array.isArray(raw)) return [];
   const out: BulkTier[] = [];
@@ -449,6 +459,11 @@ function sanitizeTiers(raw: any): BulkTier[] {
     if (min > 0) out.push({ min, max, unitCents });
   }
   return out.sort((a, b) => a.min - b.min);
+}
+
+function productBulkTiers(raw: any): BulkTier[] {
+  const saved = sanitizeTiers(raw);
+  return saved.length ? saved : DEFAULT_BULK_TIERS;
 }
 
 function unitPriceFor(qty: number, basePrice: number, tiers: BulkTier[]): { unit: number; tier: BulkTier | null } {
@@ -473,7 +488,7 @@ async function renderProductCard(productId: string, qty: number) {
   if (!p) return null;
   const anyP = p as any;
   const stock = await productStock(productId);
-  const tiers = sanitizeTiers(anyP.bulk_tiers);
+  const tiers = productBulkTiers(anyP.bulk_tiers);
   const maxSelectable = Math.max(1, Math.min(999, stock || 999));
   const cappedQty = Math.min(Math.max(1, qty), maxSelectable);
   const { unit, tier } = unitPriceFor(cappedQty, anyP.price_cents, tiers);
@@ -556,7 +571,7 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     await sendMessage(chat_id, `${EMOJI.cross} Only ${stock} in stock.`);
     return;
   }
-  const tiers = sanitizeTiers(p.bulk_tiers);
+  const tiers = productBulkTiers(p.bulk_tiers);
   const { unit } = unitPriceFor(q, p.price_cents, tiers);
   const total = unit * q;
   const { data: order, error } = await admin()
