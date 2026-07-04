@@ -472,6 +472,7 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          bulk_tiers: Json
           created_at: string
           currency: string
           custom_emoji_id: string | null
@@ -490,6 +491,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          bulk_tiers?: Json
           created_at?: string
           currency?: string
           custom_emoji_id?: string | null
@@ -508,6 +510,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          bulk_tiers?: Json
           created_at?: string
           currency?: string
           custom_emoji_id?: string | null
