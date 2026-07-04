@@ -8,6 +8,16 @@ import {
   bulkResendOrderDeliveries,
   type FailedDelivery,
 } from "@/lib/orders.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/deliveries")({
   head: () => ({
@@ -36,6 +46,7 @@ function AdminDeliveriesPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -77,9 +88,13 @@ function AdminDeliveriesPage() {
       else if (ok === 0) toast.error(`All ${failed} resend${failed === 1 ? "" : "s"} failed`);
       else toast.warning(`${ok} sent · ${failed} failed`);
       setSelected(new Set());
+      setConfirmOpen(false);
       qc.invalidateQueries({ queryKey: ["admin", "failed-deliveries"] });
     },
-    onError: (err: Error) => toast.error(err.message || "Bulk resend failed"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Bulk resend failed");
+      setConfirmOpen(false);
+    },
   });
 
   return (
