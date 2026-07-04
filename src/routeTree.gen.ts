@@ -23,6 +23,7 @@ import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminDeliveriesRouteImport } from './routes/_authenticated/admin.deliveries'
 import { Route as AuthenticatedAdminCouponsRouteImport } from './routes/_authenticated/admin.coupons'
 import { Route as AuthenticatedAdminBroadcastsRouteImport } from './routes/_authenticated/admin.broadcasts'
+import { Route as AuthenticatedAdminBotRouteImport } from './routes/_authenticated/admin.bot'
 import { Route as AuthenticatedAdminAuditLogRouteImport } from './routes/_authenticated/admin.audit-log'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
@@ -103,6 +104,11 @@ const AuthenticatedAdminBroadcastsRoute =
     path: '/broadcasts',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBotRoute = AuthenticatedAdminBotRouteImport.update({
+  id: '/bot',
+  path: '/bot',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminAuditLogRoute =
   AuthenticatedAdminAuditLogRouteImport.update({
     id: '/audit-log',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
+  '/admin/bot': typeof AuthenticatedAdminBotRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
   '/admin/coupons': typeof AuthenticatedAdminCouponsRoute
   '/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
+  '/admin/bot': typeof AuthenticatedAdminBotRoute
   '/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
   '/admin/coupons': typeof AuthenticatedAdminCouponsRoute
   '/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/checkout/return': typeof CheckoutReturnRoute
   '/pay/$orderId': typeof PayOrderIdRoute
   '/_authenticated/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
+  '/_authenticated/admin/bot': typeof AuthenticatedAdminBotRoute
   '/_authenticated/admin/broadcasts': typeof AuthenticatedAdminBroadcastsRoute
   '/_authenticated/admin/coupons': typeof AuthenticatedAdminCouponsRoute
   '/_authenticated/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/pay/$orderId'
     | '/admin/audit-log'
+    | '/admin/bot'
     | '/admin/broadcasts'
     | '/admin/coupons'
     | '/admin/deliveries'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/pay/$orderId'
     | '/admin/audit-log'
+    | '/admin/bot'
     | '/admin/broadcasts'
     | '/admin/coupons'
     | '/admin/deliveries'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/pay/$orderId'
     | '/_authenticated/admin/audit-log'
+    | '/_authenticated/admin/bot'
     | '/_authenticated/admin/broadcasts'
     | '/_authenticated/admin/coupons'
     | '/_authenticated/admin/deliveries'
@@ -356,6 +368,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBroadcastsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/bot': {
+      id: '/_authenticated/admin/bot'
+      path: '/bot'
+      fullPath: '/admin/bot'
+      preLoaderRoute: typeof AuthenticatedAdminBotRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/audit-log': {
       id: '/_authenticated/admin/audit-log'
       path: '/audit-log'
@@ -403,6 +422,7 @@ const AuthenticatedAdminOrdersRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditLogRoute: typeof AuthenticatedAdminAuditLogRoute
+  AuthenticatedAdminBotRoute: typeof AuthenticatedAdminBotRoute
   AuthenticatedAdminBroadcastsRoute: typeof AuthenticatedAdminBroadcastsRoute
   AuthenticatedAdminCouponsRoute: typeof AuthenticatedAdminCouponsRoute
   AuthenticatedAdminDeliveriesRoute: typeof AuthenticatedAdminDeliveriesRoute
@@ -415,6 +435,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditLogRoute: AuthenticatedAdminAuditLogRoute,
+  AuthenticatedAdminBotRoute: AuthenticatedAdminBotRoute,
   AuthenticatedAdminBroadcastsRoute: AuthenticatedAdminBroadcastsRoute,
   AuthenticatedAdminCouponsRoute: AuthenticatedAdminCouponsRoute,
   AuthenticatedAdminDeliveriesRoute: AuthenticatedAdminDeliveriesRoute,
