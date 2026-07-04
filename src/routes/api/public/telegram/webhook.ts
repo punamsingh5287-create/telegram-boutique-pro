@@ -9,10 +9,6 @@ import {
   formatPrice,
   EMOJI,
   type InlineButton,
-  deleteMessage,
-  sendRawMessage,
-  setMyCommands,
-  setChatMenuButton,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -131,8 +127,6 @@ async function sendHome(chat_id: number, firstName?: string) {
   });
 }
 
-const START_SPLASH_EMOJI_ID = '6089195304152731129';
-
 // Splash is intentionally disabled in the webhook fast path. It used to wait
 // 3 seconds before acknowledging Telegram, which made /start feel slow and can
 // cause Telegram retries under load.
@@ -140,45 +134,11 @@ async function flashStartSplash(chat_id: number): Promise<void> {
   void chat_id;
 }
 
-const BOT_COMMANDS = [
-  { command: 'start',    description: 'Start and open the menu' },
-  { command: 'shop',     description: 'Open the main store' },
-  { command: 'profile',  description: 'View your profile & balance' },
-  { command: 'deposit',  description: 'Add funds to your wallet' },
-  { command: 'orders',   description: 'Your recent orders' },
-  { command: 'products', description: 'Your delivered licenses' },
-  { command: 'help',     description: 'Get support & help' },
-];
-
-let _defaultMenuInstalled = false;
-const _chatMenusInstalled = new Set<number>();
-
 async function ensureMenuInstalled(chat_id?: number): Promise<void> {
   // Keep the webhook response fast. Command/menu registration is not required
   // to answer messages and making these Telegram API calls on cold starts slows
   // the first user interaction.
   void chat_id;
-  return;
-
-  if (!_defaultMenuInstalled) {
-    try {
-      await setMyCommands(BOT_COMMANDS);
-      await setMyCommands(BOT_COMMANDS, { scope: { type: 'all_private_chats' } });
-      await setChatMenuButton({ menu_button: { type: 'commands' } });
-      _defaultMenuInstalled = true;
-    } catch (err) {
-      console.error('telegram default menu install failed', err);
-    }
-  }
-
-  if (!chat_id || _chatMenusInstalled.has(chat_id)) return;
-  try {
-    await setMyCommands(BOT_COMMANDS, { scope: { type: 'chat', chat_id } });
-    await setChatMenuButton({ chat_id, menu_button: { type: 'commands' } });
-    _chatMenusInstalled.add(chat_id);
-  } catch (err) {
-    console.error('telegram chat menu install failed', err);
-  }
 }
 
 // ────────────────────────────────────────────────────────────────
