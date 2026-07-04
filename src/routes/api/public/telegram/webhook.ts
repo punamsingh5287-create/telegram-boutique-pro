@@ -979,15 +979,17 @@ async function handleUpdate(update: any) {
     const userUpsert = from && chat_id
       ? upsertTelegramUser({ id: from.id, chat_id, ...from }).catch((err) => console.error('telegram user upsert failed', err))
       : Promise.resolve();
-    await answerCallbackQuery(cq.id).catch(() => {});
+    // Ack immediately (fire-and-forget) so the tap feels instant on mobile —
+    // Telegram removes the button's loading spinner as soon as this arrives.
+    void answerCallbackQuery(cq.id).catch(() => {});
 
     // Navigation clicks replace the previous view instead of stacking a new
-    // message in the chat. Skip for in-place edits (quantity picker) and
-    // admin flows which manage their own message lifecycle.
+    // message. Delete in parallel with the next send so there's no visible
+    // gap on touch.
     const prevMessageId = (cq as any).message?.message_id;
     const isInPlaceEdit = data.startsWith('q:') || data.startsWith('adm:');
     if (chat_id && prevMessageId && !isInPlaceEdit) {
-      await deleteMessage(chat_id, prevMessageId);
+      void deleteMessage(chat_id, prevMessageId).catch(() => {});
     }
 
     try {
@@ -1006,6 +1008,21 @@ async function handleUpdate(update: any) {
         await sendMessage(chat_id, `${EMOJI.support} Contact @${cfg.support_handle} for help.`);
       }
       else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} No announcements yet.`);
+      else if (data === 'lang') {
+        const cur = from ? await getUserLang(from.id) : 'en';
+        await sendMessage(chat_id,
+          cur === 'hi'
+            ? '🌐 <b>भाषा चुनें</b>\n\nअपनी पसंदीदा भाषा चुनें।'
+            : '🌐 <b>Choose your language</b>\n\nSelect your preferred language.',
+          { reply_markup: { inline_keyboard: langChooserKeyboard() } },
+        );
+      }
+      else if (data === 'lang:en' || data === 'lang:hi') {
+        const lang: Lang = data === 'lang:hi' ? 'hi' : 'en';
+        if (from) await setUserLang(from.id, lang);
+        await sendMessage(chat_id, langSavedText(lang));
+        await sendHome(chat_id, from?.first_name);
+      }
       else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2));
       else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4), 1);
       else if (data.startsWith('q:')) {
