@@ -729,7 +729,16 @@ async function handleUpdate(update: any) {
       }
       else if (data === 'news') await sendMessage(chat_id, `${EMOJI.bell} No announcements yet.`);
       else if (data.startsWith('p:')) await sendProduct(chat_id, data.slice(2));
-      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4));
+      else if (data.startsWith('buy:')) await startCheckout(chat_id, from.id, data.slice(4), 1);
+      else if (data.startsWith('q:')) {
+        const [, pid, n] = data.split(':');
+        const message_id = (cq as any).message?.message_id;
+        if (message_id && pid) await updateProductQty(chat_id, message_id, pid, Math.max(1, parseInt(n) || 1));
+      }
+      else if (data.startsWith('b:')) {
+        const [, pid, n] = data.split(':');
+        if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
+      }
     } finally {
       await answerCallbackQuery(cq.id).catch(() => {});
     }
