@@ -112,11 +112,14 @@ function langChooserKeyboard(): InlineButton[][] {
   return rows;
 }
 
-function homeKeyboard(cfg: BotConfig): InlineButton[][] {
+function homeKeyboard(cfg: BotConfig, lang: Lang = 'en'): InlineButton[][] {
   const b = cfg.buttons;
   const mk = (key: ButtonKey, cb: string): InlineButton => {
     const btn = b[key];
-    const out: InlineButton = { text: renderButtonText(btn), callback_data: cb };
+    // For non-English users, use translated defaults so labels always match
+    // their chosen language even when admin has customized the English label.
+    const text = lang === 'en' ? renderButtonText(btn) : t(lang, `btn.${key}`);
+    const out: InlineButton = { text, callback_data: cb };
     if (btn?.style) out.style = btn.style;
     return out;
   };
@@ -125,7 +128,7 @@ function homeKeyboard(cfg: BotConfig): InlineButton[][] {
     [mk('orders', 'orders'),     mk('products', 'products')],
     [mk('coupons', 'coupons'),   mk('profile', 'profile')],
     [mk('support', 'support'),   mk('news', 'news')],
-    [{ text: '🌐 Language / भाषा', callback_data: 'lang' }],
+    [{ text: `${t(lang, 'btn.language')} · ${LANG_META[lang].native}`, callback_data: 'lang' }],
   ];
 }
 
@@ -168,10 +171,10 @@ function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset:
   };
 }
 
-async function sendHome(chat_id: number, firstName?: string) {
+async function sendHome(chat_id: number, firstName?: string, lang: Lang = 'en') {
   const cfg = await getBotConfig();
-  const text = welcomeText(cfg, firstName);
-  const reply_markup = { inline_keyboard: homeKeyboard(cfg) };
+  const text = lang === 'en' ? welcomeText(cfg, firstName) : welcomeFallback(lang, firstName);
+  const reply_markup = { inline_keyboard: homeKeyboard(cfg, lang) };
   if (cfg.welcome_image_url) {
     try {
       await sendPhoto(chat_id, cfg.welcome_image_url, text, { reply_markup });
