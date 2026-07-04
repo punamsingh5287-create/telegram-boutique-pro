@@ -19,6 +19,8 @@ async function call<T = any>(method: string, payload?: Record<string, unknown>):
 
 export type InlineButton = { text: string; callback_data?: string; url?: string };
 
+type InlineReplyMarkup = { inline_keyboard: InlineButton[][] };
+
 /** Lazily apply the admin-configured emoji → custom_emoji_id map so any emoji
  *  that has a Premium ID is auto-wrapped in <tg-emoji> before we call Telegram.
  *  Only runs for HTML parse mode. Never throws — falls back to the raw text. */
@@ -38,24 +40,48 @@ async function withPremiumEmojis(text: string, parse_mode?: string): Promise<str
   }
 }
 
+async function withPremiumReplyMarkup(reply_markup?: InlineReplyMarkup): Promise<InlineReplyMarkup | undefined> {
+  if (!reply_markup) return reply_markup;
+  try {
+    const { getBotConfig, applyPremiumEmojis } = await import('./telegram-bot-config.server');
+    const cfg = await getBotConfig();
+    const buttonEmojiMap = Object.fromEntries(
+      Object.values(cfg.buttons ?? {})
+        .filter((button) => button?.emoji && button?.premium_id)
+        .map((button) => [button.emoji, button.premium_id as string]),
+    );
+    const map = { ...cfg.emoji_map, ...buttonEmojiMap };
+    return {
+      inline_keyboard: reply_markup.inline_keyboard.map((row) => row.map((button) => ({
+        ...button,
+        text: applyPremiumEmojis(button.text, map),
+      }))),
+    };
+  } catch {
+    return reply_markup;
+  }
+}
+
 export async function sendMessage(chat_id: number | string, text: string, opts: {
   parse_mode?: 'HTML' | 'MarkdownV2';
-  reply_markup?: { inline_keyboard: InlineButton[][] };
+  reply_markup?: InlineReplyMarkup;
   disable_web_page_preview?: boolean;
 } = {}) {
   const parse_mode = opts.parse_mode ?? 'HTML';
   const rendered = await withPremiumEmojis(text, parse_mode);
-  return call('sendMessage', { chat_id, text: rendered, parse_mode, ...opts });
+  const reply_markup = await withPremiumReplyMarkup(opts.reply_markup);
+  return call('sendMessage', { chat_id, text: rendered, parse_mode, ...opts, reply_markup });
 }
 
 export async function editMessageText(chat_id: number | string, message_id: number, text: string, opts: {
   parse_mode?: 'HTML' | 'MarkdownV2';
-  reply_markup?: { inline_keyboard: InlineButton[][] };
+  reply_markup?: InlineReplyMarkup;
   disable_web_page_preview?: boolean;
 } = {}) {
   const parse_mode = opts.parse_mode ?? 'HTML';
   const rendered = await withPremiumEmojis(text, parse_mode);
-  return call('editMessageText', { chat_id, message_id, text: rendered, parse_mode, ...opts });
+  const reply_markup = await withPremiumReplyMarkup(opts.reply_markup);
+  return call('editMessageText', { chat_id, message_id, text: rendered, parse_mode, ...opts, reply_markup });
 }
 
 export function answerCallbackQuery(callback_query_id: string, text?: string, show_alert = false) {
@@ -63,10 +89,12 @@ export function answerCallbackQuery(callback_query_id: string, text?: string, sh
 }
 
 export function sendPhoto(chat_id: number | string, photo: string, caption?: string, opts: {
-  reply_markup?: { inline_keyboard: InlineButton[][] };
+  reply_markup?: InlineReplyMarkup;
   parse_mode?: 'HTML' | 'MarkdownV2';
 } = {}) {
-  return call('sendPhoto', { chat_id, photo, caption, parse_mode: opts.parse_mode ?? 'HTML', ...opts });
+  return withPremiumReplyMarkup(opts.reply_markup).then((reply_markup) =>
+    call('sendPhoto', { chat_id, photo, caption, parse_mode: opts.parse_mode ?? 'HTML', ...opts, reply_markup }),
+  );
 }
 
 export function setWebhook(url: string, secret_token?: string) {
