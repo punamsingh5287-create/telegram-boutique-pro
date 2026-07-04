@@ -884,6 +884,24 @@ async function handleUpdate(update: any) {
     if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
     if (from && await handlePendingQty(chat_id, from.id, text)) return;
 
+    // Payment reference (UTR / crypto tx hash) detection — takes priority
+    // over generic /start fallback so users can just paste the reference.
+    if (from) {
+      const det = detectReference(text);
+      if (det) {
+        const res = await submitReferenceFromChat({
+          telegram_id: from.id,
+          chat_id,
+          ref: det.ref,
+          method: det.method,
+        });
+        if (res.handled) {
+          if (res.message) await sendMessage(chat_id, res.message);
+          return;
+        }
+      }
+    }
+
     if (text.startsWith('/admin')) {
       await userUpsert;
       if (!from) return;
@@ -971,6 +989,25 @@ async function handleUpdate(update: any) {
       else if (data.startsWith('b:')) {
         const [, pid, n] = data.split(':');
         if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
+      }
+      else if (data.startsWith('pm:')) {
+        const [, method, orderId] = data.split(':');
+        if (method && orderId) await sendPaymentDetails(chat_id, method as PayMethod, orderId);
+      }
+      else if (data.startsWith('pm_back:')) {
+        const orderId = data.slice('pm_back:'.length);
+        // Rebuild chooser from order + first item
+        const { data: o } = await admin().from('orders').select('id,total_cents,currency,order_items(product_name_snapshot,quantity,unit_price_cents)').eq('id', orderId).maybeSingle();
+        if (o) {
+          const it = (o as any).order_items?.[0];
+          await sendPaymentChooser(chat_id, orderId, {
+            name: it?.product_name_snapshot ?? 'Order',
+            qty: it?.quantity ?? 1,
+            unit: it?.unit_price_cents ?? (o as any).total_cents,
+            total: (o as any).total_cents,
+            currency: (o as any).currency,
+          });
+        }
       }
     } finally {}
     return;
