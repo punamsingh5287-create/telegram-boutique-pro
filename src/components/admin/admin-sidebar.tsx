@@ -43,24 +43,24 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "Catalog",
-    items: [{ title: "Products", url: "/admin/products", icon: Package, disabled: true }],
+    items: [{ title: "Products", url: "/admin/products", icon: Package }],
   },
   {
     label: "Customers",
-    items: [{ title: "Users", url: "/admin/users", icon: Users, disabled: true }],
+    items: [{ title: "Users", url: "/admin/users", icon: Users }],
   },
   {
     label: "Marketing",
     items: [
-      { title: "Coupons", url: "/admin/coupons", icon: Tags, disabled: true },
-      { title: "Broadcasts", url: "/admin/broadcasts", icon: Megaphone, disabled: true },
+      { title: "Coupons", url: "/admin/coupons", icon: Tags },
+      { title: "Broadcasts", url: "/admin/broadcasts", icon: Megaphone },
     ],
   },
   {
     label: "System",
     items: [
       { title: "Audit log", url: "/admin/audit-log", icon: ScrollText },
-      { title: "Settings", url: "/admin/settings", icon: Settings, disabled: true },
+      { title: "Settings", url: "/admin/settings", icon: Settings },
     ],
   },
 ];
