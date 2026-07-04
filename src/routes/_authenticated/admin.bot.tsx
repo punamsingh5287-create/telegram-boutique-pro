@@ -258,14 +258,15 @@ function BotPage() {
             Telegram inline buttons show plain text only — animated emojis don't render in button
             labels. The fallback emoji here is what users see on the button.
           </p>
-          <div className="grid grid-cols-[60px_1fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
+          <div className="grid grid-cols-[60px_1fr_1.2fr] gap-x-3 gap-y-2 text-xs font-semibold uppercase text-muted-foreground">
             <div>Emoji</div>
             <div>Label</div>
+            <div>Premium ID (optional)</div>
           </div>
           {BUTTON_ORDER.map((key) => {
-            const b = form.buttons[key] ?? { label: key, emoji: "•" };
+            const b = form.buttons[key] ?? { label: key, emoji: "•", premium_id: null };
             return (
-              <div key={key} className="grid grid-cols-[60px_1fr] gap-3">
+              <div key={key} className="grid grid-cols-[60px_1fr_1.2fr] gap-3">
                 <input
                   value={b.emoji}
                   onChange={(e) =>
@@ -282,9 +283,30 @@ function BotPage() {
                   className={inp}
                   placeholder={key}
                 />
+                <input
+                  value={b.premium_id ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      buttons: {
+                        ...form.buttons,
+                        [key]: { ...b, premium_id: e.target.value.trim() || null },
+                      },
+                    })
+                  }
+                  className={inp + " font-mono text-xs"}
+                  placeholder="5368324170671202286"
+                  inputMode="numeric"
+                />
               </div>
             );
           })}
+          <p className="text-[11px] text-muted-foreground">
+            Note: Telegram inline <b>button labels</b> render plain text only — animated emojis don't
+            play inside buttons. The premium ID is used when this button's emoji appears in message
+            text (headers, confirmations, etc.). For universal animation, also add the emoji to the
+            <b> Premium emoji map</b> above.
+          </p>
         </CardContent>
       </Card>
 
