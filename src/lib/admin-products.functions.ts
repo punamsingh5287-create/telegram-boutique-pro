@@ -119,7 +119,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       id: data.id,
       slug: data.slug.trim().toLowerCase().slice(0, 100),
       name: data.name.trim().slice(0, 200),
-      emoji: (data.emoji ?? "").trim().slice(0, 16),
+      emoji: ((data.emoji ?? "").trim() || ((data.customEmojiId ?? "").trim() ? "💎" : "")).slice(0, 16),
       customEmojiId: (data.customEmojiId ?? "").trim().slice(0, 64),
       shortDescription: (data.shortDescription ?? "").slice(0, 500),
       description: (data.description ?? "").slice(0, 5000),
