@@ -562,6 +562,24 @@ async function renderProductCard(productId: string, qty: number) {
 async function sendProduct(chat_id: number, productId: string) {
   const card = await renderProductCard(productId, 1);
   if (!card) { await sendMessage(chat_id, `${EMOJI.cross} Product not available.`); return; }
+  const { data: p } = await admin()
+    .from('products')
+    .select('image_url')
+    .eq('id', productId)
+    .maybeSingle();
+  const imageUrl = (p as any)?.image_url as string | null | undefined;
+  if (imageUrl) {
+    try {
+      // Telegram caption limit is 1024 chars; fall back to text-only if it overflows.
+      if (card.text.length <= 1024) {
+        await sendPhoto(chat_id, imageUrl, card.text, { reply_markup: card.reply_markup });
+        return;
+      }
+      await sendPhoto(chat_id, imageUrl, '');
+    } catch (err) {
+      console.error('sendProduct photo failed, falling back to text:', err);
+    }
+  }
   await sendMessage(chat_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
 }
 
