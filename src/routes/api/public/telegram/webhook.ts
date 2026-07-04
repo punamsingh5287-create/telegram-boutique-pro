@@ -841,6 +841,15 @@ async function handleUpdate(update: any) {
       : Promise.resolve();
     await answerCallbackQuery(cq.id).catch(() => {});
 
+    // Navigation clicks replace the previous view instead of stacking a new
+    // message in the chat. Skip for in-place edits (quantity picker) and
+    // admin flows which manage their own message lifecycle.
+    const prevMessageId = (cq as any).message?.message_id;
+    const isInPlaceEdit = data.startsWith('q:') || data.startsWith('adm:');
+    if (prevMessageId && !isInPlaceEdit) {
+      void deleteMessage(chat_id, prevMessageId);
+    }
+
     try {
       if (data.startsWith('adm:')) {
         await userUpsert;
