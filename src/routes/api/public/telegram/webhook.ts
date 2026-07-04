@@ -398,9 +398,8 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
-  // Start the premium emoji popup immediately, then keep the webhook alive
-  // until its delete call finishes. Fire-and-forget timers can be cancelled by
-  // the server runtime after the webhook returns, which left the emoji visible.
+  // Start the premium emoji popup immediately and keep the webhook alive until
+  // its delete finishes, so the message reliably vanishes after the effect starts.
   const popupCleanup = flashShopPopup(chat_id);
 
   try {
@@ -446,8 +445,9 @@ async function flashShopPopup(chat_id: number) {
       `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
     );
     const message_id = (sent as any)?.message_id;
-    // Keep it visible for the full Telegram premium effect, then remove it.
-    await new Promise((r) => setTimeout(r, 3000));
+    // Telegram triggers the original premium animation as soon as this arrives;
+    // remove the temporary emoji message after 1s so only the effect remains.
+    await new Promise((r) => setTimeout(r, 1000));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
