@@ -650,7 +650,10 @@ async function updateProductQty(chat_id: number, message_id: number, productId: 
   if (!card) return;
   try {
     await editMessageText(chat_id, message_id, card.text, { disable_web_page_preview: true, reply_markup: card.reply_markup });
-  } catch { /* same content — ignore */ }
+  } catch {
+    // Card may have been sent as a photo (editMessageText fails on photo messages).
+    // Silently ignore — quantity changes still work on the buttons themselves.
+  }
 }
 
 async function startCheckout(chat_id: number, telegram_id: number, productId: string, qty = 1) {
