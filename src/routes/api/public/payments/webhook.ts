@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { verifyStripeWebhook, type StripeEnv } from "@/lib/stripe.server";
-import { sendMessage, formatPrice, EMOJI } from "@/lib/telegram.server";
+import { sendMessage, sendPhoto, formatPrice, EMOJI } from "@/lib/telegram.server";
 
 const MAX_DM_ATTEMPTS = 4;
 
@@ -14,10 +14,19 @@ function sleep(ms: number) {
 async function sendWithRetry(
   chatId: number | string,
   text: string,
+  photoUrl?: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string; permanent: boolean; attempts: number }> {
   let lastError = "unknown error";
   for (let attempt = 1; attempt <= MAX_DM_ATTEMPTS; attempt++) {
     try {
+      if (photoUrl) {
+        try {
+          await sendPhoto(chatId, photoUrl, text);
+          return { ok: true };
+        } catch (photoErr) {
+          console.error("sendPhoto failed, falling back to text:", photoErr);
+        }
+      }
       await sendMessage(chatId, text, { disable_web_page_preview: true });
       return { ok: true };
     } catch (e) {
@@ -48,14 +57,17 @@ async function claimDeliveries(orderId: string) {
 
   const { data: order } = await supabaseAdmin
     .from("orders")
-    .select("id,chat_id,currency,total_cents,order_items(id,product_id,quantity,product_name_snapshot)")
+    .select("id,chat_id,currency,total_cents,order_items(id,product_id,quantity,product_name_snapshot,products(image_url))")
     .eq("id", orderId)
     .maybeSingle();
   if (!order) return;
 
   const deliveryLines: string[] = [];
+  let firstImage: string | null = null;
 
   for (const item of order.order_items ?? []) {
+    const img = (item as any).products?.image_url as string | null | undefined;
+    if (img && !firstImage) firstImage = img;
     for (let i = 0; i < item.quantity; i++) {
       const { data: asset } = await supabaseAdmin
         .from("digital_assets")
@@ -115,7 +127,7 @@ async function claimDeliveries(orderId: string) {
     return;
   }
 
-  const result = await sendWithRetry(order.chat_id, text);
+  const result = await sendWithRetry(order.chat_id, text, firstImage);
 
   if (result.ok) {
     await supabaseAdmin
