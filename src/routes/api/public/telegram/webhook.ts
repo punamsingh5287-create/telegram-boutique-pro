@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 import { createHash, timingSafeEqual } from 'crypto';
 import {
   sendMessage,
@@ -20,10 +21,10 @@ function safeEqual(a: string, b: string): boolean {
   return A.length === B.length && timingSafeEqual(A, B);
 }
 
-let _admin: ReturnType<typeof createClient> | null = null;
+let _admin: ReturnType<typeof createClient<Database>> | null = null;
 function admin() {
   if (!_admin) {
-    _admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    _admin = createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   }
   return _admin;
 }
