@@ -36,6 +36,7 @@ import {
   type ButtonKey,
   type BotConfig,
 } from '@/lib/telegram-bot-config.server';
+import { t, welcomeFallback, normalizeLang, SUPPORTED_LANGS, LANG_META, type Lang } from '@/lib/i18n.server';
 
 function deriveWebhookSecret(botToken: string): string {
   return createHash('sha256').update(`telegram-webhook:${botToken}`).digest('base64url');
@@ -78,33 +79,37 @@ async function upsertTelegramUser(u: {
 
 // ────────────────────────────────────────────────────────────────
 // Language (per-user, stored in telegram_users.language_code)
+// Cached in-memory so hot chats don't hit the DB on every action.
 // ────────────────────────────────────────────────────────────────
-type Lang = 'en' | 'hi';
+const LANG_TTL_MS = 60_000;
+const _langCache = new Map<number, { at: number; lang: Lang }>();
 async function getUserLang(telegram_id: number): Promise<Lang> {
+  const now = Date.now();
+  const hit = _langCache.get(telegram_id);
+  if (hit && now - hit.at < LANG_TTL_MS) return hit.lang;
   const { data } = await admin()
-    .from('telegram_users')
-    .select('language_code')
-    .eq('telegram_id', telegram_id)
-    .maybeSingle();
-  return ((data as any)?.language_code === 'hi' ? 'hi' : 'en');
+    .from('telegram_users').select('language_code')
+    .eq('telegram_id', telegram_id).maybeSingle();
+  const lang = normalizeLang((data as any)?.language_code);
+  _langCache.set(telegram_id, { at: now, lang });
+  return lang;
 }
 async function setUserLang(telegram_id: number, lang: Lang) {
+  _langCache.set(telegram_id, { at: Date.now(), lang });
   await admin().from('telegram_users').update({ language_code: lang }).eq('telegram_id', telegram_id);
 }
-const LANG_LABEL: Record<Lang, string> = { en: 'English', hi: 'हिन्दी' };
-function langSavedText(lang: Lang): string {
-  return lang === 'hi'
-    ? '✅ भाषा सेट हो गई: <b>हिन्दी</b>'
-    : '✅ Language set to <b>English</b>';
-}
 function langChooserKeyboard(): InlineButton[][] {
-  return [
-    [
-      { text: '🇬🇧 English', callback_data: 'lang:en' },
-      { text: '🇮🇳 हिन्दी',  callback_data: 'lang:hi' },
-    ],
-    [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
-  ];
+  const rows: InlineButton[][] = [];
+  const langs = SUPPORTED_LANGS;
+  for (let i = 0; i < langs.length; i += 2) {
+    const row: InlineButton[] = [];
+    for (const l of langs.slice(i, i + 2)) {
+      row.push({ text: `${LANG_META[l].flag} ${LANG_META[l].native}`, callback_data: `lang:${l}` });
+    }
+    rows.push(row);
+  }
+  rows.push([{ text: `${EMOJI.back} Back`, callback_data: 'home' }]);
+  return rows;
 }
 
 function homeKeyboard(cfg: BotConfig): InlineButton[][] {
