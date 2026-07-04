@@ -398,36 +398,42 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
-  // Fire the premium emoji effect in parallel — don't block the catalog.
-  void flashShopPopup(chat_id);
+  // Start the premium emoji popup immediately, then keep the webhook alive
+  // until its delete call finishes. Fire-and-forget timers can be cancelled by
+  // the server runtime after the webhook returns, which left the emoji visible.
+  const popupCleanup = flashShopPopup(chat_id);
 
-  const { data: products } = await admin()
-    .from('products')
-    .select('id, slug, name, emoji, custom_emoji_id, short_description, price_cents, currency, featured')
-    .eq('active', true)
-    .order('featured', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(10);
+  try {
+    const { data: products } = await admin()
+      .from('products')
+      .select('id, slug, name, emoji, custom_emoji_id, short_description, price_cents, currency, featured')
+      .eq('active', true)
+      .order('featured', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-  if (!products?.length) {
-    await sendMessage(chat_id, `${EMOJI.clock} <b>The catalog is empty.</b>\nOur team is preparing something premium — check back soon.`, {
-      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'home' }]] },
+    if (!products?.length) {
+      await sendMessage(chat_id, `${EMOJI.clock} <b>The catalog is empty.</b>\nOur team is preparing something premium — check back soon.`, {
+        reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'home' }]] },
+      });
+      return;
+    }
+
+    await sendMessage(chat_id, `${EMOJI.shop} <b>Mateo Store · Catalog</b>\nSelect a product to view details.`, {
+      reply_markup: {
+        inline_keyboard: [
+          ...products.map((p: any) => [{
+            text: `${p.featured ? EMOJI.star + ' ' : ''}${p.emoji ? p.emoji + ' ' : ''}${p.name}  ·  ${formatPrice(p.price_cents, p.currency)}`,
+            callback_data: `p:${p.id}`,
+            ...(p.custom_emoji_id ? { icon_custom_emoji_id: p.custom_emoji_id } : {}),
+          }]),
+          [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
+        ],
+      },
     });
-    return;
+  } finally {
+    await popupCleanup;
   }
-
-  await sendMessage(chat_id, `${EMOJI.shop} <b>Mateo Store · Catalog</b>\nSelect a product to view details.`, {
-    reply_markup: {
-      inline_keyboard: [
-        ...products.map((p: any) => [{
-          text: `${p.featured ? EMOJI.star + ' ' : ''}${p.emoji ? p.emoji + ' ' : ''}${p.name}  ·  ${formatPrice(p.price_cents, p.currency)}`,
-          callback_data: `p:${p.id}`,
-          ...(p.custom_emoji_id ? { icon_custom_emoji_id: p.custom_emoji_id } : {}),
-        }]),
-        [{ text: `${EMOJI.back} Back`, callback_data: 'home' }],
-      ],
-    },
-  });
 }
 
 const SHOP_POPUP_EMOJI_ID = '5384508509385669657';
@@ -440,10 +446,8 @@ async function flashShopPopup(chat_id: number) {
       `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
     );
     const message_id = (sent as any)?.message_id;
-    // Keep just long enough for Telegram to trigger the premium emoji effect,
-    // then vanish the message quickly so the chat stays clean.
-    // Let the premium emoji effect play in full, then vanish the message.
-    await new Promise((r) => setTimeout(r, 2500));
+    // Keep it visible for the full Telegram premium effect, then remove it.
+    await new Promise((r) => setTimeout(r, 3000));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
@@ -846,8 +850,8 @@ async function handleUpdate(update: any) {
     // admin flows which manage their own message lifecycle.
     const prevMessageId = (cq as any).message?.message_id;
     const isInPlaceEdit = data.startsWith('q:') || data.startsWith('adm:');
-    if (prevMessageId && !isInPlaceEdit) {
-      void deleteMessage(chat_id, prevMessageId);
+    if (chat_id && prevMessageId && !isInPlaceEdit) {
+      await deleteMessage(chat_id, prevMessageId);
     }
 
     try {
