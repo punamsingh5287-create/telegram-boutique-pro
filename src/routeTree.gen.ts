@@ -16,6 +16,7 @@ import { Route as PayOrderIdRouteImport } from './routes/pay.$orderId'
 import { Route as CheckoutReturnRouteImport } from './routes/checkout.return'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminProductsRouteImport } from './routes/_authenticated/admin.products'
 import { Route as AuthenticatedAdminOrdersRouteImport } from './routes/_authenticated/admin.orders'
 import { Route as AuthenticatedAdminDeliveriesRouteImport } from './routes/_authenticated/admin.deliveries'
 import { Route as AuthenticatedAdminAuditLogRouteImport } from './routes/_authenticated/admin.audit-log'
@@ -57,6 +58,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminProductsRoute =
+  AuthenticatedAdminProductsRouteImport.update({
+    id: '/products',
+    path: '/products',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminOrdersRoute =
   AuthenticatedAdminOrdersRouteImport.update({
     id: '/orders',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
   '/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
+  '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/orders/$orderId': typeof AuthenticatedAdminOrdersOrderIdRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -116,6 +124,7 @@ export interface FileRoutesByTo {
   '/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
   '/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
+  '/admin/products': typeof AuthenticatedAdminProductsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/orders/$orderId': typeof AuthenticatedAdminOrdersOrderIdRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -132,6 +141,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/audit-log': typeof AuthenticatedAdminAuditLogRoute
   '/_authenticated/admin/deliveries': typeof AuthenticatedAdminDeliveriesRoute
   '/_authenticated/admin/orders': typeof AuthenticatedAdminOrdersRouteWithChildren
+  '/_authenticated/admin/products': typeof AuthenticatedAdminProductsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/orders/$orderId': typeof AuthenticatedAdminOrdersOrderIdRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/admin/audit-log'
     | '/admin/deliveries'
     | '/admin/orders'
+    | '/admin/products'
     | '/admin/'
     | '/admin/orders/$orderId'
     | '/api/public/payments/webhook'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/admin/audit-log'
     | '/admin/deliveries'
     | '/admin/orders'
+    | '/admin/products'
     | '/admin'
     | '/admin/orders/$orderId'
     | '/api/public/payments/webhook'
@@ -176,6 +188,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/audit-log'
     | '/_authenticated/admin/deliveries'
     | '/_authenticated/admin/orders'
+    | '/_authenticated/admin/products'
     | '/_authenticated/admin/'
     | '/_authenticated/admin/orders/$orderId'
     | '/api/public/payments/webhook'
@@ -243,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/products': {
+      id: '/_authenticated/admin/products'
+      path: '/products'
+      fullPath: '/admin/products'
+      preLoaderRoute: typeof AuthenticatedAdminProductsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/orders': {
       id: '/_authenticated/admin/orders'
       path: '/orders'
@@ -306,6 +326,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditLogRoute: typeof AuthenticatedAdminAuditLogRoute
   AuthenticatedAdminDeliveriesRoute: typeof AuthenticatedAdminDeliveriesRoute
   AuthenticatedAdminOrdersRoute: typeof AuthenticatedAdminOrdersRouteWithChildren
+  AuthenticatedAdminProductsRoute: typeof AuthenticatedAdminProductsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -313,6 +334,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditLogRoute: AuthenticatedAdminAuditLogRoute,
   AuthenticatedAdminDeliveriesRoute: AuthenticatedAdminDeliveriesRoute,
   AuthenticatedAdminOrdersRoute: AuthenticatedAdminOrdersRouteWithChildren,
+  AuthenticatedAdminProductsRoute: AuthenticatedAdminProductsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
