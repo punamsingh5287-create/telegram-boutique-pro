@@ -125,7 +125,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         }
         const env: StripeEnv = rawEnv;
 
-        let event: { type: string; data: { object: any } };
+        let event: { id: string; type: string; data: { object: any } };
         try {
           event = await verifyStripeWebhook(request, env);
         } catch (e) {
@@ -134,6 +134,21 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
         }
 
         try {
+          // Idempotency: record the event id first. If it already exists,
+          // Stripe is retrying a previously-processed event — skip handlers
+          // so license keys are never claimed or DMed twice.
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { error: dupErr } = await supabaseAdmin
+            .from("stripe_webhook_events")
+            .insert({ event_id: event.id, type: event.type, environment: env });
+          if (dupErr) {
+            if ((dupErr as { code?: string }).code === "23505") {
+              console.log("Duplicate Stripe event ignored:", event.id);
+              return Response.json({ received: true, duplicate: true });
+            }
+            throw dupErr;
+          }
+
           switch (event.type) {
             case "checkout.session.completed":
             case "checkout.session.async_payment_succeeded":
