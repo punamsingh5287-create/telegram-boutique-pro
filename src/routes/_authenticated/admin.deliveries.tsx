@@ -47,6 +47,7 @@ function AdminDeliveriesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmSingle, setConfirmSingle] = useState<FailedDelivery | null>(null);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -69,9 +70,13 @@ function AdminDeliveriesPage() {
     },
     onSuccess: (res) => {
       toast.success(`Delivery sent (${res.attempts} attempt${res.attempts === 1 ? "" : "s"})`);
+      setConfirmSingle(null);
       qc.invalidateQueries({ queryKey: ["admin", "failed-deliveries"] });
     },
-    onError: (err: Error) => toast.error(err.message || "Resend failed"),
+    onError: (err: Error) => {
+      toast.error(err.message || "Resend failed");
+      setConfirmSingle(null);
+    },
     onSettled: () => setBusyId(null),
   });
 
