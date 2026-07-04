@@ -1,4 +1,5 @@
 import { sendMessage, formatPrice, EMOJI } from "@/lib/telegram.server";
+import { recordAudit } from "@/lib/audit.server";
 
 const MAX_DM_ATTEMPTS = 4;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -84,6 +85,13 @@ export async function sendOrderDeliveryDM(
         last_delivery_error: null,
       })
       .eq("id", order.id);
+    await recordAudit({
+      action: "delivery.dm.sent",
+      orderId: order.id,
+      success: true,
+      attempts: result.attempts,
+      context: { chatId: order.chat_id, priorAttempts, itemCount: deliveries.length },
+    });
   } else {
     await supabaseAdmin
       .from("orders")
@@ -92,6 +100,15 @@ export async function sendOrderDeliveryDM(
         last_delivery_error: result.error.slice(0, 500),
       })
       .eq("id", order.id);
+    await recordAudit({
+      action: "delivery.dm.failed",
+      orderId: order.id,
+      success: false,
+      attempts: result.attempts,
+      error: result.error,
+      permanent: result.permanent,
+      context: { chatId: order.chat_id, priorAttempts, itemCount: deliveries.length },
+    });
   }
 
   return result;
