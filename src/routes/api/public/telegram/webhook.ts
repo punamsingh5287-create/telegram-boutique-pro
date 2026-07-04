@@ -9,10 +9,6 @@ import {
   formatPrice,
   EMOJI,
   type InlineButton,
-  deleteMessage,
-  sendRawMessage,
-  setMyCommands,
-  setChatMenuButton,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -131,72 +127,18 @@ async function sendHome(chat_id: number, firstName?: string) {
   });
 }
 
-const START_SPLASH_EMOJI_ID = '6089195304152731129';
-
-// Splash: send the premium emoji BELOW the welcome menu, wait 3s, delete.
-// Awaited inline because Cloudflare Workers kill background promises after
-// the response returns — fire-and-forget would never actually run.
+// Splash is intentionally disabled in the webhook fast path. It used to wait
+// 3 seconds before acknowledging Telegram, which made /start feel slow and can
+// cause Telegram retries under load.
 async function flashStartSplash(chat_id: number): Promise<void> {
-  try {
-    const stateKey = `start_splash:${chat_id}`;
-    const { data: previous } = await admin()
-      .from('app_settings')
-      .select('value')
-      .eq('key', stateKey)
-      .maybeSingle();
-    const previousId = Number((previous?.value as any)?.message_id ?? 0);
-    if (previousId) await deleteMessage(chat_id, previousId).catch(() => {});
-
-    const sent: any = await sendRawMessage(
-      chat_id,
-      `<tg-emoji emoji-id="${START_SPLASH_EMOJI_ID}">✨</tg-emoji>`,
-    );
-    if (!sent?.message_id) return;
-    await admin().from('app_settings').upsert(
-      { key: stateKey, value: { message_id: sent.message_id } as any, updated_at: new Date().toISOString() },
-      { onConflict: 'key' },
-    );
-    await new Promise((r) => setTimeout(r, 3000));
-    await deleteMessage(chat_id, sent.message_id).catch(() => null);
-    await admin().from('app_settings').delete().eq('key', stateKey);
-  } catch {
-    // Decorative only — never block /start.
-  }
+  void chat_id;
 }
 
-const BOT_COMMANDS = [
-  { command: 'start',    description: 'Start and open the menu' },
-  { command: 'shop',     description: 'Open the main store' },
-  { command: 'profile',  description: 'View your profile & balance' },
-  { command: 'deposit',  description: 'Add funds to your wallet' },
-  { command: 'orders',   description: 'Your recent orders' },
-  { command: 'products', description: 'Your delivered licenses' },
-  { command: 'help',     description: 'Get support & help' },
-];
-
-let _defaultMenuInstalled = false;
-const _chatMenusInstalled = new Set<number>();
-
 async function ensureMenuInstalled(chat_id?: number): Promise<void> {
-  if (!_defaultMenuInstalled) {
-    try {
-      await setMyCommands(BOT_COMMANDS);
-      await setMyCommands(BOT_COMMANDS, { scope: { type: 'all_private_chats' } });
-      await setChatMenuButton({ menu_button: { type: 'commands' } });
-      _defaultMenuInstalled = true;
-    } catch (err) {
-      console.error('telegram default menu install failed', err);
-    }
-  }
-
-  if (!chat_id || _chatMenusInstalled.has(chat_id)) return;
-  try {
-    await setMyCommands(BOT_COMMANDS, { scope: { type: 'chat', chat_id } });
-    await setChatMenuButton({ chat_id, menu_button: { type: 'commands' } });
-    _chatMenusInstalled.add(chat_id);
-  } catch (err) {
-    console.error('telegram chat menu install failed', err);
-  }
+  // Keep the webhook response fast. Command/menu registration is not required
+  // to answer messages and making these Telegram API calls on cold starts slows
+  // the first user interaction.
+  void chat_id;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -725,8 +667,9 @@ async function handleUpdate(update: any) {
     const msg = update.message;
     const chat_id = msg.chat.id;
     const from = msg.from;
-    if (from) await upsertTelegramUser({ id: from.id, chat_id, ...from });
-    await ensureMenuInstalled(chat_id);
+    const userUpsert = from
+      ? upsertTelegramUser({ id: from.id, chat_id, ...from }).catch((err) => console.error('telegram user upsert failed', err))
+      : Promise.resolve();
 
     const text: string = msg.text ?? '';
 
@@ -735,6 +678,7 @@ async function handleUpdate(update: any) {
     if (from && await handleAdminInputText(chat_id, from.id, msg)) return;
 
     if (text.startsWith('/admin')) {
+      await userUpsert;
       if (!from) return;
       const ok = await ensureFirstAdmin(from.id);
       if (!ok) {
@@ -743,16 +687,16 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
-      // Ensure the persistent Menu (hamburger) button + commands are registered.
-      await ensureMenuInstalled(chat_id);
       // Send welcome menu first, then splash appears BELOW the menu for 3s.
       await sendHome(chat_id, from?.first_name);
       await flashStartSplash(chat_id);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
     } else if (text.startsWith('/orders')) {
+      await userUpsert;
       await sendOrders(chat_id, from.id);
     } else if (text.startsWith('/products')) {
+      await userUpsert;
       await sendMyProducts(chat_id, from.id);
     } else if (text.startsWith('/help')) {
       await sendMessage(chat_id, [
@@ -774,17 +718,20 @@ async function handleUpdate(update: any) {
     const chat_id = cq.message?.chat?.id;
     const from = cq.from;
     const data: string = cq.data ?? '';
-    if (from && chat_id) await upsertTelegramUser({ id: from.id, chat_id, ...from });
-    if (chat_id) await ensureMenuInstalled(chat_id);
+    const userUpsert = from && chat_id
+      ? upsertTelegramUser({ id: from.id, chat_id, ...from }).catch((err) => console.error('telegram user upsert failed', err))
+      : Promise.resolve();
+    await answerCallbackQuery(cq.id).catch(() => {});
 
     try {
       if (data.startsWith('adm:')) {
+        await userUpsert;
         await handleAdminCallback(chat_id, from.id, data);
       }
       if (data === 'home') await sendHome(chat_id, from?.first_name);
       else if (data === 'shop' || data === 'trending') await sendShop(chat_id);
-      else if (data === 'orders') await sendOrders(chat_id, from.id);
-      else if (data === 'products') await sendMyProducts(chat_id, from.id);
+      else if (data === 'orders') { await userUpsert; await sendOrders(chat_id, from.id); }
+      else if (data === 'products') { await userUpsert; await sendMyProducts(chat_id, from.id); }
       else if (data === 'coupons') await sendMessage(chat_id, `${EMOJI.coupon} Coupons launching soon.`);
       else if (data === 'profile') await sendMessage(chat_id, `${EMOJI.user} <b>Profile</b>\n\nTelegram ID: <code>${from.id}</code>\nUsername: @${from.username ?? '—'}`);
       else if (data === 'support') {
@@ -803,9 +750,7 @@ async function handleUpdate(update: any) {
         const [, pid, n] = data.split(':');
         if (pid) await startCheckout(chat_id, from.id, pid, Math.max(1, parseInt(n) || 1));
       }
-    } finally {
-      await answerCallbackQuery(cq.id).catch(() => {});
-    }
+    } finally {}
     return;
   }
 }
