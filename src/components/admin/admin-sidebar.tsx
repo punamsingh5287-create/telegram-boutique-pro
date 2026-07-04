@@ -27,40 +27,40 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
-type NavItem = { title: string; url: string; icon: any; disabled?: boolean };
+type NavItem = { title: string; url: string; icon: any; emoji: string; disabled?: boolean };
 
 const groups: { label: string; items: NavItem[] }[] = [
   {
-    label: "Overview",
-    items: [{ title: "Dashboard", url: "/admin", icon: LayoutDashboard }],
+    label: "✨ Overview",
+    items: [{ title: "Dashboard", url: "/admin", icon: LayoutDashboard, emoji: "📊" }],
   },
   {
-    label: "Sales",
+    label: "💰 Sales",
     items: [
-      { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
-      { title: "Deliveries", url: "/admin/deliveries", icon: Truck },
+      { title: "Orders", url: "/admin/orders", icon: ShoppingCart, emoji: "🛒" },
+      { title: "Deliveries", url: "/admin/deliveries", icon: Truck, emoji: "🚚" },
     ],
   },
   {
-    label: "Catalog",
-    items: [{ title: "Products", url: "/admin/products", icon: Package }],
+    label: "📦 Catalog",
+    items: [{ title: "Products", url: "/admin/products", icon: Package, emoji: "💎" }],
   },
   {
-    label: "Customers",
-    items: [{ title: "Users", url: "/admin/users", icon: Users }],
+    label: "👥 Customers",
+    items: [{ title: "Users", url: "/admin/users", icon: Users, emoji: "👤" }],
   },
   {
-    label: "Marketing",
+    label: "📣 Marketing",
     items: [
-      { title: "Coupons", url: "/admin/coupons", icon: Tags },
-      { title: "Broadcasts", url: "/admin/broadcasts", icon: Megaphone },
+      { title: "Coupons", url: "/admin/coupons", icon: Tags, emoji: "🎟️" },
+      { title: "Broadcasts", url: "/admin/broadcasts", icon: Megaphone, emoji: "📢" },
     ],
   },
   {
-    label: "System",
+    label: "⚙️ System",
     items: [
-      { title: "Audit log", url: "/admin/audit-log", icon: ScrollText },
-      { title: "Settings", url: "/admin/settings", icon: Settings },
+      { title: "Audit log", url: "/admin/audit-log", icon: ScrollText, emoji: "📜" },
+      { title: "Settings", url: "/admin/settings", icon: Settings, emoji: "⚙️" },
     ],
   },
 ];
@@ -86,13 +86,13 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground text-sm font-bold">
-            M
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-indigo-500 via-purple-500 to-fuchsia-500 text-white text-base shadow-md">
+            💎
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">Mateo Store</div>
-              <div className="truncate text-xs text-muted-foreground">Admin console</div>
+              <div className="truncate text-xs text-muted-foreground">✨ Premium admin</div>
             </div>
           )}
         </div>
@@ -112,10 +112,10 @@ export function AdminSidebar() {
                         <SidebarMenuButton
                           disabled
                           className="cursor-not-allowed opacity-50"
-                          tooltip={collapsed ? `${item.title} (soon)` : undefined}
+                          tooltip={collapsed ? `${item.emoji} ${item.title} (soon)` : undefined}
                         >
                           <Icon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span>{item.emoji} {item.title}</span>
                           <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                             soon
                           </span>
@@ -128,11 +128,11 @@ export function AdminSidebar() {
                       <SidebarMenuButton
                         asChild
                         isActive={active}
-                        tooltip={collapsed ? item.title : undefined}
+                        tooltip={collapsed ? `${item.emoji} ${item.title}` : undefined}
                       >
                         <Link to={item.url}>
                           <Icon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span>{item.emoji} {item.title}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -146,9 +146,9 @@ export function AdminSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={signOut} tooltip={collapsed ? "Sign out" : undefined}>
+            <SidebarMenuButton onClick={signOut} tooltip={collapsed ? "🚪 Sign out" : undefined}>
               <LogOut className="h-4 w-4" />
-              <span>Sign out</span>
+              <span>🚪 Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
