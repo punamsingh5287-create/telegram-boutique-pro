@@ -123,6 +123,14 @@ export function answerCallbackQuery(callback_query_id: string, text?: string, sh
   return call('answerCallbackQuery', { callback_query_id, text, show_alert });
 }
 
+export function setMyCommands(commands: { command: string; description: string }[]) {
+  return call('setMyCommands', { commands });
+}
+
+export function setChatMenuButton(payload: { chat_id?: number; menu_button: any }) {
+  return call('setChatMenuButton', payload);
+}
+
 export function sendPhoto(chat_id: number | string, photo: string, caption?: string, opts: {
   reply_markup?: InlineReplyMarkup;
   parse_mode?: 'HTML' | 'MarkdownV2';
