@@ -38,7 +38,7 @@ function AuditLogPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   const setSearch = (patch: Partial<{ page: number; pageSize: number; result: typeof result; action: string }>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev: any) => ({ ...prev, ...patch }) });
 
   return (
     <div className="relative min-h-screen">
