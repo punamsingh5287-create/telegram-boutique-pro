@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          attempts: number | null
+          context: Json
+          created_at: string
+          error: string | null
+          id: string
+          order_id: string | null
+          permanent: boolean | null
+          success: boolean | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          attempts?: number | null
+          context?: Json
+          created_at?: string
+          error?: string | null
+          id?: string
+          order_id?: string | null
+          permanent?: boolean | null
+          success?: boolean | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          attempts?: number | null
+          context?: Json
+          created_at?: string
+          error?: string | null
+          id?: string
+          order_id?: string | null
+          permanent?: boolean | null
+          success?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cart_items: {
         Row: {
           added_at: string
