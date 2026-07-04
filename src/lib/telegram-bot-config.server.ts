@@ -91,7 +91,7 @@ export function renderEmoji(b: BotButton): string {
 }
 
 export function renderButtonText(b: BotButton): string {
-  return `${renderEmoji(b)} ${b.label}`;
+  return `${b.emoji} ${b.label}`;
 }
 
 // ------------------------------------------------------------------
