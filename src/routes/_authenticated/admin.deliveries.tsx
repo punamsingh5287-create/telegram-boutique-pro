@@ -198,6 +198,30 @@ function AdminDeliveriesPage() {
           </ul>
         )}
       </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => !bulkResend.isPending && setConfirmOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resend {selected.size} deliver{selected.size === 1 ? "y" : "ies"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Each selected order will receive its Telegram DM again. License keys are not re-claimed,
+              but customers may receive duplicate messages. This action is logged in the admin audit log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkResend.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                bulkResend.mutate(Array.from(selected));
+              }}
+              disabled={bulkResend.isPending || selected.size === 0}
+            >
+              {bulkResend.isPending ? "Resending…" : `Resend ${selected.size}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
