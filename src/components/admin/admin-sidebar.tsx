@@ -9,6 +9,7 @@ import {
   Truck,
   ScrollText,
   Settings,
+  Bot,
   LogOut,
 } from "lucide-react";
 import {
@@ -60,6 +61,7 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "⚙️ System",
     items: [
+      { title: "Bot content", url: "/admin/bot", icon: Bot, emoji: "🤖" },
       { title: "Audit log", url: "/admin/audit-log", icon: ScrollText, emoji: "📜" },
       { title: "Settings", url: "/admin/settings", icon: Settings, emoji: "⚙️" },
     ],
