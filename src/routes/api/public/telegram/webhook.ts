@@ -13,6 +13,7 @@ import {
 import {
   getBotConfig,
   saveBotConfig,
+  renderEmoji,
   renderButtonText,
   isAdmin,
   ensureFirstAdmin,
@@ -74,6 +75,23 @@ function homeKeyboard(cfg: BotConfig): InlineButton[][] {
   ];
 }
 
+function homeMenuPreviewText(cfg: BotConfig): string {
+  const rows: ButtonKey[][] = [
+    ['shop', 'trending'],
+    ['orders', 'products'],
+    ['coupons', 'profile'],
+    ['support', 'news'],
+  ];
+  return rows
+    .map((row) => row
+      .map((key) => {
+        const button = cfg.buttons[key];
+        return `${renderEmoji(button)} ${escapeHtml(button.label)}`;
+      })
+      .join('  ·  '))
+    .join('\n');
+}
+
 function welcomeText(cfg: BotConfig, firstName?: string): string {
   const name_line = firstName ? `, <b>${escapeHtml(firstName)}</b>` : '';
   let text = cfg.welcome_text.replace(/\{name_line\}/g, name_line).replace(/\{name\}/g, firstName ? escapeHtml(firstName) : '');
@@ -87,7 +105,12 @@ function escapeHtml(s: string): string {
 
 async function sendHome(chat_id: number, firstName?: string) {
   const cfg = await getBotConfig();
-  await sendMessage(chat_id, welcomeText(cfg, firstName), {
+  await sendMessage(chat_id, [
+    welcomeText(cfg, firstName),
+    '',
+    '<b>Menu</b>',
+    homeMenuPreviewText(cfg),
+  ].join('\n'), {
     reply_markup: { inline_keyboard: homeKeyboard(cfg) },
   });
 }
@@ -151,10 +174,10 @@ async function sendAdminButtonEdit(chat_id: number, k: ButtonKey) {
     [
       `🔘 <b>${escapeHtml(b.label)}</b>`,
       ``,
-      `Emoji: ${b.emoji}`,
+      `Emoji preview: ${renderEmoji(b)}`,
       `Premium emoji ID: ${premium}`,
       ``,
-      `<i>Tip: Premium emoji IDs make the emoji animated for Telegram Premium users. Get one by forwarding a premium sticker to @idstickerbot.</i>`,
+      `<i>Telegram does not support animated custom emoji inside keyboard button labels, so the premium version is shown in message text/menu previews while the button keeps the plain fallback emoji.</i>`,
     ].join('\n'),
     { reply_markup: { inline_keyboard: adminButtonEditKeyboard(k) } },
   );
