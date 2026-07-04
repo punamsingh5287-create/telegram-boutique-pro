@@ -9,6 +9,7 @@ import {
   formatPrice,
   EMOJI,
   type InlineButton,
+  deleteMessage,
 } from '@/lib/telegram.server';
 import {
   getBotConfig,
@@ -573,6 +574,7 @@ async function handleUpdate(update: any) {
       }
       await sendAdminMenu(chat_id);
     } else if (text.startsWith('/start')) {
+      await sendStartSplash(chat_id);
       await sendHome(chat_id, from?.first_name);
     } else if (text.startsWith('/shop')) {
       await sendShop(chat_id);
