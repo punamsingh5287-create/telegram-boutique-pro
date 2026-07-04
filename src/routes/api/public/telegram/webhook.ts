@@ -514,12 +514,20 @@ async function renderProductCard(productId: string, qty: number) {
   );
 
   if (tiers.length > 0) {
-    lines.push('', `📊 <b>Bulk Discounts</b>`);
+    lines.push('', `🎁 <b>Bulk Discounts — Buy more, save more</b>`);
+    const basePrice = anyP.price_cents as number;
     for (const t of tiers) {
-      const range = t.max === null ? `${t.min}+` : `${t.min}-${t.max}`;
+      const range = t.max === null
+        ? `Buy ${t.min}+ codes`
+        : `Buy ${t.min}-${t.max} codes`;
       const active = cappedQty >= t.min && (t.max === null || cappedQty <= t.max);
-      lines.push(`${active ? '✅' : '•'} ${range} → ${formatPrice(t.unitCents, cur)} each`);
+      const savedPct = basePrice > 0 && t.unitCents < basePrice
+        ? Math.round(((basePrice - t.unitCents) / basePrice) * 100)
+        : 0;
+      const savedLabel = savedPct > 0 ? `  <b>(-${savedPct}%)</b>` : '';
+      lines.push(`${active ? '✅' : '▫️'} ${range} → <b>${formatPrice(t.unitCents, cur)}</b> each${savedLabel}`);
     }
+    lines.push('', `<i>💡 Discount auto-applies at checkout based on quantity.</i>`);
   }
 
   const dec = Math.max(1, cappedQty - 1);
