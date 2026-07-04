@@ -5,6 +5,8 @@ export type AdminProduct = {
   id: string;
   slug: string;
   name: string;
+  emoji: string | null;
+  customEmojiId: string | null;
   shortDescription: string | null;
   description: string | null;
   priceCents: number;
@@ -27,6 +29,8 @@ function toProduct(r: any): AdminProduct {
     id: r.id,
     slug: r.slug,
     name: r.name,
+    emoji: r.emoji ?? null,
+    customEmojiId: r.custom_emoji_id ?? null,
     shortDescription: r.short_description,
     description: r.description,
     priceCents: r.price_cents,
@@ -58,6 +62,8 @@ export type SaveProductInput = {
   id?: string;
   slug: string;
   name: string;
+  emoji: string;
+  customEmojiId: string;
   shortDescription: string;
   description: string;
   priceCents: number;
@@ -77,6 +83,8 @@ export const saveProduct = createServerFn({ method: "POST" })
       id: data.id,
       slug: data.slug.trim().toLowerCase().slice(0, 100),
       name: data.name.trim().slice(0, 200),
+      emoji: (data.emoji ?? "").trim().slice(0, 16),
+      customEmojiId: (data.customEmojiId ?? "").trim().slice(0, 64),
       shortDescription: (data.shortDescription ?? "").slice(0, 500),
       description: (data.description ?? "").slice(0, 5000),
       priceCents: Math.floor(data.priceCents),
@@ -93,6 +101,8 @@ export const saveProduct = createServerFn({ method: "POST" })
     const payload = {
       slug: data.slug,
       name: data.name,
+      emoji: data.emoji || null,
+      custom_emoji_id: data.customEmojiId || null,
       short_description: data.shortDescription || null,
       description: data.description || null,
       price_cents: data.priceCents,

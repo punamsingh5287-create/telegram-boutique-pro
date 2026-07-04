@@ -22,7 +22,7 @@ function money(c: number, cur: string) {
 }
 
 const empty = {
-  slug: "", name: "", shortDescription: "", description: "",
+  slug: "", name: "", emoji: "", customEmojiId: "", shortDescription: "", description: "",
   priceCents: 0, currency: "USD", imageUrl: "", deliveryType: "digital",
   active: true, featured: false,
 };
@@ -187,6 +187,14 @@ function ProductSheet({
           <Field label={<><TgEmoji>🏷️</TgEmoji> Product name</>} hint="Displayed to customers">
             <input required placeholder="Premium Course Bundle" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
           </Field>
+          <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-3">
+            <Field label={<><TgEmoji>😀</TgEmoji> Emoji</>} hint="e.g. 💎">
+              <input maxLength={8} placeholder="💎" value={form.emoji ?? ""} onChange={(e) => setForm({ ...form, emoji: e.target.value })} className={inputCls + " text-center text-lg"} />
+            </Field>
+            <Field label={<><TgEmoji variant="gold">✨</TgEmoji> Custom emoji ID</>} hint="Telegram Premium animated emoji ID (optional)">
+              <input placeholder="5368324170671202286" value={form.customEmojiId ?? ""} onChange={(e) => setForm({ ...form, customEmojiId: e.target.value })} className={inputCls + " font-mono text-xs"} />
+            </Field>
+          </div>
           <Field label={<><TgEmoji>🔗</TgEmoji> Slug</>} hint="URL identifier, lowercase, no spaces">
             <input required placeholder="premium-course" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} className={inputCls} />
           </Field>
