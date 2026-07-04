@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { listAdminProducts, saveProduct, deleteProduct, getProductStock, addDigitalAssets, type AdminProduct } from "@/lib/admin-products.functions";
+import { uploadProductImage } from "@/lib/admin-uploads.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Pencil, Plus, Trash2, Sparkles } from "lucide-react";
@@ -234,6 +235,11 @@ function ProductSheet({
           </Field>
           <Field label={<><TgEmoji>🖼️</TgEmoji> Cover image URL</>} hint="Public https:// image link">
             <input placeholder="https://…" value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputCls} />
+            <ImageUploader
+              folder="products"
+              currentUrl={form.imageUrl ?? ""}
+              onUploaded={(url) => setForm({ ...form, imageUrl: url })}
+            />
             {form.imageUrl && (
               <img src={form.imageUrl} alt="preview" className="mt-2 h-24 w-24 rounded-md border object-cover" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}} />
             )}
