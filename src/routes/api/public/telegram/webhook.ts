@@ -8,6 +8,8 @@ import {
   answerCallbackQuery,
   formatPrice,
   EMOJI,
+  sendPhoto,
+  deleteMessage,
   type InlineButton,
 } from '@/lib/telegram.server';
 import {
@@ -122,9 +124,17 @@ function firstCustomEmoji(text: string, entities?: Array<{ type: string; offset:
 
 async function sendHome(chat_id: number, firstName?: string) {
   const cfg = await getBotConfig();
-  await sendMessage(chat_id, welcomeText(cfg, firstName), {
-    reply_markup: { inline_keyboard: homeKeyboard(cfg) },
-  });
+  const text = welcomeText(cfg, firstName);
+  const reply_markup = { inline_keyboard: homeKeyboard(cfg) };
+  if (cfg.welcome_image_url) {
+    try {
+      await sendPhoto(chat_id, cfg.welcome_image_url, text, { reply_markup });
+      return;
+    } catch (err) {
+      console.error('welcome photo failed, falling back to text', err);
+    }
+  }
+  await sendMessage(chat_id, text, { reply_markup });
 }
 
 // Splash is intentionally disabled in the webhook fast path. It used to wait
@@ -388,6 +398,9 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
+  // Flash the configured pop-up custom emoji for ~3s, then continue.
+  await flashShopPopup(chat_id);
+
   const { data: products } = await admin()
     .from('products')
     .select('id, slug, name, emoji, custom_emoji_id, short_description, price_cents, currency, featured')
@@ -415,6 +428,23 @@ async function sendShop(chat_id: number) {
       ],
     },
   });
+}
+
+const SHOP_POPUP_EMOJI_ID = '5384508509385669657';
+const SHOP_POPUP_FALLBACK = '✨';
+
+async function flashShopPopup(chat_id: number) {
+  try {
+    const sent = await sendMessage(
+      chat_id,
+      `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
+    );
+    const message_id = (sent as any)?.message_id;
+    await new Promise((r) => setTimeout(r, 3000));
+    if (message_id) await deleteMessage(chat_id, message_id);
+  } catch (err) {
+    console.error('shop popup failed', err);
+  }
 }
 
 type BulkTier = { min: number; max: number | null; unitCents: number };
