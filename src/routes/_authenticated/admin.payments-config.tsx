@@ -251,6 +251,42 @@ function PaymentsConfigPage() {
         />
       </div>
 
+      {/* Binance Pay */}
+      <Card>
+        <CardHeader>
+          <SectionHeader
+            title="Binance Pay"
+            emoji="🟨"
+            enabled={cfg.binance.enabled}
+            onToggle={(enabled) => setCfg({ ...cfg, binance: { ...cfg.binance, enabled } })}
+            description="Buyer aapke Binance Pay ID par bhejega. API keys ho to auto-verify, warna admin approval fallback."
+          />
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label="Binance Pay ID" hint="Binance app → Pay → 'Send' → your Pay ID (numeric).">
+            <input className={inp} placeholder="e.g. 123456789" value={cfg.binance.pay_id}
+              onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, pay_id: e.target.value.trim() } })} />
+          </Field>
+          <Field label="Account email / username (optional)">
+            <input className={inp} placeholder="you@example.com" value={cfg.binance.account_email}
+              onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, account_email: e.target.value.trim() } })} />
+          </Field>
+          <Field label="Accepted assets" hint="Comma separated, e.g. USDT,BTC,BNB">
+            <input className={inp} value={cfg.binance.accepted_assets}
+              onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, accepted_assets: e.target.value.toUpperCase() } })} />
+          </Field>
+          <div />
+          <Field label="Binance Pay API Key" hint="pay.binance.com → Merchant → API Management → Create.">
+            <input className={inp} type="password" placeholder="paste api key" value={cfg.binance.api_key}
+              onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, api_key: e.target.value.trim() } })} />
+          </Field>
+          <Field label="Binance Pay API Secret">
+            <input className={inp} type="password" value={cfg.binance.api_secret}
+              onChange={(e) => setCfg({ ...cfg, binance: { ...cfg.binance, api_secret: e.target.value.trim() } })} />
+          </Field>
+        </CardContent>
+      </Card>
+
       {/* Rates + rules */}
       <Card>
         <CardHeader><CardTitle className="text-base">⚙️ Conversion & rules</CardTitle></CardHeader>
