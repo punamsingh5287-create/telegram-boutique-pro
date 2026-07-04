@@ -730,23 +730,85 @@ async function startCheckout(chat_id: number, telegram_id: number, productId: st
     product_name_snapshot: p.name,
   });
 
-  const payUrl = `${siteBase()}/pay/${(order as any).id}`;
-  await sendMessage(chat_id, [
+  await sendPaymentChooser(chat_id, (order as any).id, {
+    name: p.name,
+    qty: q,
+    unit,
+    total,
+    currency: p.currency,
+  });
+}
+
+async function sendPaymentChooser(
+  chat_id: number,
+  orderId: string,
+  order: { name: string; qty: number; unit: number; total: number; currency: string },
+) {
+  const cfg = await loadCfg();
+  const methods = enabledMethods(cfg);
+  const shortId = orderId.slice(0, 8);
+
+  if (!methods.length) {
+    await sendMessage(chat_id, [
+      `${EMOJI.cross} <b>Payment options not configured yet</b>`,
+      ``,
+      `Admin ne abhi tak koi payment method enable nahi kiya. Kripya support se contact karein.`,
+    ].join('\n'), {
+      reply_markup: { inline_keyboard: [[{ text: `${EMOJI.back} Back`, callback_data: 'shop' }]] },
+    });
+    return;
+  }
+
+  const lines: string[] = [
     `${EMOJI.lock} <b>Secure Checkout</b>`,
     ``,
-    `<b>${p.name}</b> × ${q}`,
-    `Unit: ${formatPrice(unit, p.currency)}`,
-    `Total: <b>${formatPrice(total, p.currency)}</b>`,
+    `<b>${order.name}</b> × ${order.qty}`,
+    `Unit: ${formatPrice(order.unit, order.currency)}`,
+    `Total: <b>${formatPrice(order.total, order.currency)}</b>`,
+    `Order: <code>${shortId}</code>`,
     ``,
-    `Tap below to complete your payment. Your license will be delivered here automatically.`,
-  ].join('\n'), {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: `${EMOJI.pay} Pay ${formatPrice(total, p.currency)}`, url: payUrl }],
-        [{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }],
-      ],
-    },
-  });
+    `Payment method choose karein — sab kuch yahi chat me hoga.`,
+  ];
+
+  // Show equivalent amount preview per method
+  const previewOrder = { total_cents: order.total, currency: order.currency };
+  const previews = methods.map((m) => `• ${methodLabel(m)} — <b>${expectedAmount(previewOrder, m, cfg).display}</b>`);
+  lines.push('', ...previews);
+
+  const buttons: InlineButton[][] = methods.map((m) => [
+    { text: `${EMOJI.pay} ${methodLabel(m)}`, callback_data: `pm:${m}:${orderId}` },
+  ]);
+  buttons.push([{ text: `${EMOJI.back} Cancel`, callback_data: 'shop' }]);
+
+  await sendMessage(chat_id, lines.join('\n'), { reply_markup: { inline_keyboard: buttons } });
+}
+
+async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: string) {
+  const { data: order } = await admin()
+    .from('orders')
+    .select('id,total_cents,currency,status')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (!order) {
+    await sendMessage(chat_id, `${EMOJI.cross} Order not found.`);
+    return;
+  }
+  if ((order as any).status !== 'pending') {
+    await sendMessage(chat_id, `${EMOJI.check} Order already <b>${(order as any).status}</b>.`);
+    return;
+  }
+  const { text, photo } = await buildPaymentInstruction(order as any, method);
+  const reply_markup = {
+    inline_keyboard: [
+      [{ text: `${EMOJI.back} Change method`, callback_data: `pm_back:${orderId}` }],
+      [{ text: `${EMOJI.cross} Cancel`, callback_data: 'shop' }],
+    ],
+  };
+  if (photo) {
+    await sendPhoto(chat_id, photo, text, { reply_markup });
+  } else {
+    await sendMessage(chat_id, text, { reply_markup });
+  }
 }
 
 async function sendOrders(chat_id: number, telegram_id: number) {
