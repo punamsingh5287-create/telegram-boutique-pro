@@ -398,8 +398,8 @@ async function handleAdminInputText(chat_id: number, tg: number, msg: any): Prom
 }
 
 async function sendShop(chat_id: number) {
-  // Flash the configured pop-up custom emoji for ~3s, then continue.
-  await flashShopPopup(chat_id);
+  // Fire the premium emoji effect in parallel — don't block the catalog.
+  void flashShopPopup(chat_id);
 
   const { data: products } = await admin()
     .from('products')
@@ -440,7 +440,9 @@ async function flashShopPopup(chat_id: number) {
       `<tg-emoji emoji-id="${SHOP_POPUP_EMOJI_ID}">${SHOP_POPUP_FALLBACK}</tg-emoji>`,
     );
     const message_id = (sent as any)?.message_id;
-    await new Promise((r) => setTimeout(r, 3000));
+    // Keep just long enough for Telegram to trigger the premium emoji effect,
+    // then vanish the message quickly so the chat stays clean.
+    await new Promise((r) => setTimeout(r, 600));
     if (message_id) await deleteMessage(chat_id, message_id);
   } catch (err) {
     console.error('shop popup failed', err);
