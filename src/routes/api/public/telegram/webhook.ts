@@ -20,6 +20,7 @@ import {
   methodLabel,
   loadCfg,
   expectedAmount,
+  verifyBinanceForOrder,
   type PayMethod,
 } from '@/lib/payment-flow.server';
 import {
@@ -830,13 +831,12 @@ async function sendPaymentDetails(chat_id: number, method: PayMethod, orderId: s
     await sendMessage(chat_id, `${EMOJI.check} ${t(lang, 'order.already', { status: (order as any).status })}`);
     return;
   }
-  const { text, photo } = await buildPaymentInstruction(order as any, method);
-  const reply_markup = {
-    inline_keyboard: [
-      [{ text: t(lang, 'btn.change_method'), callback_data: `pm_back:${orderId}` }],
-      [{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }],
-    ],
-  };
+  const { text, photo, extraButtons } = await buildPaymentInstruction(order as any, method);
+  const rows: InlineButton[][] = [];
+  if (extraButtons) rows.push(...(extraButtons as InlineButton[][]));
+  rows.push([{ text: t(lang, 'btn.change_method'), callback_data: `pm_back:${orderId}` }]);
+  rows.push([{ text: t(lang, 'btn.cancel'), callback_data: 'shop' }]);
+  const reply_markup = { inline_keyboard: rows };
   if (photo) {
     await sendPhoto(chat_id, photo, text, { reply_markup });
   } else {
