@@ -176,9 +176,39 @@ export const resendOrderDelivery = createServerFn({ method: "POST" })
     if (!isAdmin) return { ok: false, error: "Forbidden" };
 
     const { sendOrderDeliveryDM } = await import("@/lib/delivery.server");
-    const result = await sendOrderDeliveryDM(data.orderId);
-    if (result.ok) return { ok: true, attempts: result.attempts };
-    return { ok: false, error: result.error };
+    const { recordAudit } = await import("@/lib/audit.server");
+    await recordAudit({
+      action: "delivery.resend.requested",
+      orderId: data.orderId,
+      actorUserId: context.userId,
+      context: { mode: "single" },
+    });
+    try {
+      const result = await sendOrderDeliveryDM(data.orderId);
+      await recordAudit({
+        action: "delivery.resend.completed",
+        orderId: data.orderId,
+        actorUserId: context.userId,
+        success: result.ok,
+        attempts: result.attempts,
+        error: result.ok ? null : result.error,
+        permanent: result.ok ? null : result.permanent,
+        context: { mode: "single" },
+      });
+      if (result.ok) return { ok: true, attempts: result.attempts };
+      return { ok: false, error: result.error };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await recordAudit({
+        action: "delivery.resend.handler_error",
+        orderId: data.orderId,
+        actorUserId: context.userId,
+        success: false,
+        error: msg,
+        context: { mode: "single", stack: e instanceof Error ? e.stack?.slice(0, 1000) : null },
+      });
+      return { ok: false, error: msg };
+    }
   });
 
 export type BulkResendItem =
@@ -205,13 +235,38 @@ export const bulkResendOrderDeliveries = createServerFn({ method: "POST" })
     if (!isAdmin) return { ok: false, error: "Forbidden" };
 
     const { sendOrderDeliveryDM } = await import("@/lib/delivery.server");
+    const { recordAudit } = await import("@/lib/audit.server");
+    await recordAudit({
+      action: "delivery.resend.requested",
+      actorUserId: context.userId,
+      context: { mode: "bulk", count: data.orderIds.length, orderIds: data.orderIds },
+    });
     const results: BulkResendItem[] = [];
     for (const orderId of data.orderIds) {
       try {
         const r = await sendOrderDeliveryDM(orderId);
         results.push(r.ok ? { orderId, ok: true, attempts: r.attempts } : { orderId, ok: false, error: r.error });
+        await recordAudit({
+          action: "delivery.resend.completed",
+          orderId,
+          actorUserId: context.userId,
+          success: r.ok,
+          attempts: r.attempts,
+          error: r.ok ? null : r.error,
+          permanent: r.ok ? null : r.permanent,
+          context: { mode: "bulk" },
+        });
       } catch (e) {
-        results.push({ orderId, ok: false, error: e instanceof Error ? e.message : "Unknown error" });
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        results.push({ orderId, ok: false, error: msg });
+        await recordAudit({
+          action: "delivery.resend.handler_error",
+          orderId,
+          actorUserId: context.userId,
+          success: false,
+          error: msg,
+          context: { mode: "bulk", stack: e instanceof Error ? e.stack?.slice(0, 1000) : null },
+        });
       }
     }
     return { ok: true, results };
